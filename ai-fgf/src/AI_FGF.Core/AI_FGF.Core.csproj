@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Platform-neutral core: tool specs, process running, exit codes, CSV, colour maths.
+         Shared by the WinForms front end (Windows) and the Avalonia one (Linux, macOS, Windows). -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <RootNamespace>AI_FGF</RootNamespace>
+    <AssemblyName>AI_FGF.Core</AssemblyName>
+    <Version>0.1</Version>
+    <!-- a package with a pinned version: an app depends on a release, not on this repository (tools/Pack.ps1) -->
+    <IsPackable>true</IsPackable>
+    <PackageId>AI_FGF.Core</PackageId>
+    <Product>AI_FGF</Product>
+    <Description>AI_FGF core: ToolSpec (a tool's form described as JSON), ProcessRunner, exit-code policy, CSV and colour maths — no UI, runs on every .NET platform.</Description>
+
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/AI_FGF.Demo/AI_FGF.Demo.csproj" />
+    <Project Path="samples/AI_FGF.Template/AI_FGF.Template.csproj" />
+    <Project Path="samples/AI_FGF.Linux/AI_FGF.Linux.csproj" />
+    <Project Path="samples/AI_FGF.Demo.Avalonia/AI_FGF.Demo.Avalonia.csproj" />
+    <Project Path="samples/AI_FGF.Demo.Midnight/AI_FGF.Demo.Midnight.csproj" />
+    <Project Path="samples/AI_FGF.Demo.Avalonia.Direct3D/AI_FGF.Demo.Avalonia.Direct3D.csproj" />
+    <Project Path="samples/AI_FGF.Demo.Direct3D.Spec/AI_FGF.Demo.Direct3D.Spec.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AI_FGF/AI_FGF.csproj" />
+    <Project Path="src/AI_FGF.Core/AI_FGF.Core.csproj" />
+    <Project Path="src/AI_FGF.Avalonia/AI_FGF.Avalonia.csproj" />
+    <Project Path="src/AI_FGF.Avalonia.Direct3D/AI_FGF.Avalonia.Direct3D.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/AI_FGF.Check/AI_FGF.Check.csproj" />
+  </Folder>
+</Solution>

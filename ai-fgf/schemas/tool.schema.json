@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-fgf.local/schemas/tool.schema.json",
+  "title": "AI_FGF tool spec (tool.json)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This schema, for editor completion and checking."
+    },
+    "title": {
+      "type": "string",
+      "description": "The window title. Required."
+    },
+    "executable": {
+      "type": "string",
+      "description": "The program to run (on PATH or a full path). With an Interpreter, an optional override of it."
+    },
+    "interpreter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Run Script with \"pwsh\" (PowerShell; Windows PowerShell if pwsh is missing) or \"python\" — UTF-8 output, no buffering, no profile/policy surprises. The field arguments (after fixedArgs) become the script's arguments."
+    },
+    "script": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The script for Interpreter; a relative path is relative to the spec file."
+    },
+    "fixedArgs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Arguments always passed first (e.g. [\"-NoProfile\", \"-File\", \"script.ps1\"])."
+    },
+    "workingDirectory": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Working directory; may use {Key} placeholders."
+    },
+    "encoding": {
+      "type": "string",
+      "description": "\"oem\" (default: console code page) or \"utf8\"."
+    },
+    "timeoutSeconds": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ],
+      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+      "description": "Stop a run (the whole process tree) after this many seconds; omit for no limit."
+    },
+    "runButton": {
+      "type": "string",
+      "description": "Caption of the Run button; \"&\" marks the Alt access key."
+    },
+    "presets": {
+      "type": "boolean",
+      "description": "Save preset… / Load preset… buttons."
+    },
+    "busyOverlay": {
+      "type": "boolean",
+      "description": "Dim the window while running (hides the live log)."
+    },
+    "theme": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "accent": {
+          "type": "string",
+          "description": "Accent colour, \"#RRGGBB\"."
+        },
+        "dark": {
+          "type": "boolean",
+          "description": "The dark variant of the theme."
+        },
+        "tint": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+          "description": "How strongly backgrounds take the accent's hue, 0–1."
+        }
+      },
+      "description": "The tool's colours: { \"accent\": \"#0F7B6C\", \"dark\": false, \"tint\": 0.2 } (WinForms: AiFgfTheme.Create).",
+      "additionalProperties": false
+    },
+    "themeButton": {
+      "type": "boolean",
+      "description": "Show a \"Theme…\" button so the user can pick colours (saved with the settings)."
+    },
+    "sunkenFields": {
+      "type": "boolean",
+      "description": "Draw every input field as a sunken Direct3D card with a focus-glow ring (the WinForms Direct3D look), the same effect the Results grid already gets. Best with a dark Theme and \"buttonStyle\": \"glow\"."
+    },
+    "env": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Environment variables set for the tool's process, e.g. { \"MYTOOL_PROGRESS_STDOUT\": \"1\" } to make a script emit its ##PROGRESS## / ChoicesFromMarker markers."
+    },
+    "buttonStyle": {
+      "enum": [
+        "flat",
+        "raised",
+        "glow",
+        null
+      ],
+      "description": "How buttons are drawn: \"flat\", \"raised\" or \"glow\" (AiFgfEffects); absent = the application's default. A choice the user makes in the \"Theme…\" dialog wins; flat where an effect cannot be drawn."
+    },
+    "renderer": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "How ButtonStyle (\"raised\"/\"glow\") is actually drawn: absent (default) for the cross-platform look (WinForms: Direct3D 12; Avalonia: a drop shadow), or \"direct3d\" to ask Avalonia for the real Direct3D 12 rendering too (the WinForms look: buttons and field focus glow) — only on Windows, and only when the app referenced the experimental add-on (AI_FGF.Avalonia.Direct3D) and it could initialise; otherwise this is ignored and the drop shadow is used, unchanged. WinForms already draws with Direct3D 12 and ignores this field."
+    },
+    "resultsCsv": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "After a successful run, load this CSV into the Results tab; may use {Key} placeholders."
+    },
+    "successCodes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Exit codes that mean success: \"0\" (default), \"0-7\", \"0,1\", \"0-3, 8\"."
+    },
+    "warningCodes": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Exit codes that mean \"finished with a warning\", with a message: { \"3010\": \"Reboot required\" }."
+    },
+    "failureMessages": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Readable messages for failing exit codes: { \"16\": \"Fatal error\" }."
+    },
+    "settingsKey": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Key under which settings are saved (default: derived from the title; \"\" = do not persist)."
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable key (settings, presets, {Key} placeholders). Required, unique."
+          },
+          "label": {
+            "type": "string",
+            "description": "Caption shown next to the input. Required."
+          },
+          "lines": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ],
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "description": "Visible lines of a memo field (default 4). Memo lines never wrap."
+          },
+          "maxLines": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ],
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "description": "A memo grows with its text up to this many lines before it scrolls (default 12)."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "A memo that shows text instead of taking input."
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "file",
+              "folder",
+              "choice",
+              "number",
+              "flag",
+              "memo"
+            ],
+            "description": "The input: text, file, folder, choice, number, flag or memo."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "The value must not be empty (shown as \"Label *\")."
+          },
+          "default": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ],
+            "description": "Initial value: text, a choice, a number (4 or \"4\") or a flag (true/false)."
+          },
+          "placeholder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Grey hint text shown while the field is empty."
+          },
+          "choices": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Choice: the allowed values (shown in a drop-down list)."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "Choice: allow typing values that are not in the list."
+          },
+          "choicesFromMarker": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Fill a type-ahead combo live from the tool's own output: each stdout line <marker>|value (e.g. \"##FEATURE##\") adds value to this field's drop-down, and the marker lines are hidden from the log. Turns a text field into an editable combo (a choice keeps its listed items and gains the discovered ones). The tool must print the markers — usually gated by an Env variable. Run once (e.g. with the field empty) to populate it."
+          },
+          "min": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ],
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "Number: the smallest value."
+          },
+          "max": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ],
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "Number: the largest value."
+          },
+          "decimals": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "description": "Number: digits after the decimal point (shown and passed)."
+          },
+          "filter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "File: dialog filter, e.g. \"Logs|*.log|All files|*.*\"."
+          },
+          "pattern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Text/File/Folder/Choice: value must match this regex."
+          },
+          "patternMessage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message shown when the value does not match Pattern."
+          },
+          "arg": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How the value becomes command-line arguments: \"-o\" emits -o value (skipped when empty); \"--level={value}\" emits one token; for a flag, the argument is emitted when checked. Leave empty and set Positional for a bare value."
+          },
+          "positional": {
+            "type": "boolean",
+            "description": "Emit the value as a bare argument, after all options, in field order."
+          },
+          "enabledWhen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Enable this field only while a condition holds: \"Key\" (set / checked), \"!Key\", \"Key=value\", \"Key!=value\". A disabled field is not validated and not passed to the tool."
+          },
+          "visibleWhen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Show this field only while a condition holds (same syntax); hidden fields take no space."
+          }
+        },
+        "description": "One input of a ToolSpec: how it looks, how it validates, how it becomes arguments.",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label"
+        ]
+      },
+      "description": "The inputs, in the order shown; each becomes arguments as its arg / positional say."
+    },
+    "resolvedScript": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The script path, resolved against BaseDirectory when relative."
+    }
+  },
+  "description": "A declarative description of a tool form — the \"template\" that turns a short description of a command-line tool into a correct SpecToolForm (WinForms or Avalonia) without writing UI code: var spec = ToolSpec.FromFile(\"tool.json\"); if (spec.Validate().Any(i => i.IsError)) … AiFgfApp.Run(() => new SpecToolForm(spec)); JSON is case-insensitive and tolerates comments and trailing commas, so it can be edited by hand.",
+  "additionalProperties": false
+}

@@ -1,0 +1,46 @@
+{
+  // AI_FGF Avalonia showcase: the SAME MidnightBlue tool.json as Demo.Midnight, but with
+  // "renderer": "direct3d" - every button and glow field below is drawn by the real Direct3D 12
+  // renderer (AiFgfD3DButton/AiFgfD3DFieldGlow, AI_FGF.Avalonia.Direct3D), not the drop-shadow
+  // fallback. Windows-only; falls back to the drop shadow unchanged if the add-on were absent or
+  // Direct3D could not initialise (see AiFgfD3D.Status, printed to the log on Run below).
+  "$schema": "../../schemas/tool.schema.json",
+  "title": "Midnight demo (Avalonia, Direct3D)",
+  "executable": "cmd",
+  "fixedArgs": [ "/c", "echo" ],
+  "encoding": "oem",
+  "timeoutSeconds": 600,
+  "runButton": "▶ &Run",
+  "presets": true,
+  "themeButton": true,
+  "buttonStyle": "glow",
+  "renderer": "direct3d",
+  "theme": { "accent": "#408CFF", "dark": true, "tint": 0.35 },
+  "resultsCsv": "{Output}\\results.csv",
+
+  "fields": [
+    { "key": "Input",   "label": "Input file",     "kind": "file",   "required": true,
+      "filter": "All files|*.*",                   "arg": "--input" },
+
+    { "key": "Output",  "label": "Output folder",  "kind": "folder", "arg": "--out" },
+
+    { "key": "Name",    "label": "Job name",       "kind": "text",
+      "placeholder": "letters, digits, - and _",
+      "pattern": "^[A-Za-z0-9_-]*$", "patternMessage": "Job name: only letters, digits, '-' and '_'.",
+      "arg": "--name={value}" },
+
+    { "key": "Mode",    "label": "Mode",           "kind": "choice",
+      "choices": [ "quick", "full", "verify" ], "default": "quick", "arg": "--mode" },
+
+    { "key": "Threads", "label": "Threads",        "kind": "number", "min": 1, "max": 64, "default": 4, "arg": "-t" },
+
+    { "key": "Exclude", "label": "Exclude paths",  "kind": "memo",   "lines": 3,
+      "placeholder": "one path per line", "arg": "--exclude" },
+
+    { "key": "Verbose", "label": "Verbose output", "kind": "flag",   "arg": "--verbose" },
+    { "key": "DryRun",  "label": "Dry run",        "kind": "flag",   "default": true, "arg": "--dry-run" },
+
+    { "key": "Target",  "label": "Target",         "kind": "text",   "positional": true,
+      "placeholder": "host or path the tool works on" }
+  ]
+}

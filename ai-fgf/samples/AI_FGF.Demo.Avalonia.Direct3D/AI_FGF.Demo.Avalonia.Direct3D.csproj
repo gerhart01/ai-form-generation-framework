@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Experimental, Windows-only: real Direct3D 12 button/field rendering on Avalonia -->
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net10.0-windows7.0;net11.0-windows7.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AI_FGF.Demo.Avalonia.Direct3D</RootNamespace>
+    <AssemblyName>AI_FGF.Demo.Avalonia.Direct3D</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI_FGF.Avalonia\AI_FGF.Avalonia.csproj" />
+    <ProjectReference Include="..\..\src\AI_FGF.Avalonia.Direct3D\AI_FGF.Avalonia.Direct3D.csproj" />
+  </ItemGroup>
+
+</Project>

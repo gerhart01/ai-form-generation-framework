@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Experimental, Windows-only: real Direct3D 12 button/field rendering for the Avalonia front
+         end, reusing the same pixel shader as AI_FGF's WinForms AiFgfDirect3D (not a refactor/share -
+         copied on purpose, to keep this add-on isolated from the heavily-tested WinForms renderer).
+         Avalonia itself stays cross-platform (AI_FGF.Avalonia, AiFgfButtonEffects' drop shadows);
+         this project is an opt-in extra for apps that only ship on Windows and want the identical
+         look AI_FGF has on WinForms. Without Direct3D 12 (no GPU/driver, or any other OS)
+         callers should fall back to AiFgfButtonEffects - see AiFgfD3D.IsAvailable. -->
+    <TargetFrameworks>net10.0-windows7.0;net11.0-windows7.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AI_FGF.AvaloniaDirect3D</RootNamespace>
+    <AssemblyName>AI_FGF.Avalonia.Direct3D</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI_FGF.Core\AI_FGF.Core.csproj" />
+    <ProjectReference Include="..\AI_FGF.Avalonia\AI_FGF.Avalonia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+  </ItemGroup>
+
+</Project>

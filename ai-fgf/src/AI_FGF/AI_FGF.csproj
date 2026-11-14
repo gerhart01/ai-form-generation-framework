@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Class library: the reusable building blocks. Apps reference this and add <OutputType>WinExe</OutputType>. -->
+    <TargetFrameworks>net10.0-windows;net11.0-windows</TargetFrameworks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <RootNamespace>AI_FGF</RootNamespace>
+    <AssemblyName>AI_FGF</AssemblyName>
+    <Version>0.1</Version>
+    <!-- a package with a pinned version: an app depends on a release, not on this repository (tools/Pack.ps1) -->
+    <IsPackable>true</IsPackable>
+    <PackageId>AI_FGF</PackageId>
+    <Product>AI_FGF</Product>
+    <Description>A .NET 10 / .NET 11 WinForms rapid form-building framework distilled from hand-coded tool-runner GUIs (theme, control factory, layout scaffold, colored log, styled grid, async process runner, ToolForm base), with real Direct3D 12 rendered buttons and fields (raised bevel, glow halo, animated hover/press, perspective depth) that fall back to flat automatically when unavailable.</Description>
+
+    <!-- High-DPI is a property of the executable, not the library, but we surface the
+         recommended defaults in docs. Analyzers on, matching the source projects. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- AiFgfDirect3D copies GPU readback rows into bitmaps. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Library ships styling helpers with many public members; don't demand XML docs on every one. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI_FGF.Core\AI_FGF.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Direct3D 12 button faces (AiFgfButton.Use3D): managed bindings, MIT. Missing GPU/driver → flat buttons. -->
+  <ItemGroup>
+    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+  </ItemGroup>
+
+</Project>

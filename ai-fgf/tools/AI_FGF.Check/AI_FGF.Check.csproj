@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console: prints a report and exits 0 (PASS) / 1 (FAIL) / 2 (unreadable spec). -->
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0-windows;net11.0-windows</TargetFrameworks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AI_FGF.Check</RootNamespace>
+    <AssemblyName>AI_FGF.Check</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI_FGF\AI_FGF.csproj" />
+  </ItemGroup>
+
+</Project>

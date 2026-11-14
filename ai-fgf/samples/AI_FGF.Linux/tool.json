@@ -1,0 +1,43 @@
+// The Linux version of samples/AI_FGF.Template/tool.json: same fields, but the template's
+// command is /bin/echo (cmd does not exist on Linux). Replace "executable" with your tool.
+{
+  "title": "Template tool",
+  "executable": "echo",
+  "encoding": "utf8",
+  "timeoutSeconds": 600,
+  "runButton": "▶ &Run",
+  "resultsCsv": "{Output}/results.csv",
+
+  "fields": [
+    { "key": "Input",   "label": "Input file",     "kind": "file",   "required": true,
+      "filter": "All files|*",                     "arg": "--input" },
+
+    { "key": "Output",  "label": "Output folder",  "kind": "folder", "arg": "--out" },
+
+    { "key": "Name",    "label": "Job name",       "kind": "text",
+      "placeholder": "letters, digits, - and _",
+      "pattern": "^[A-Za-z0-9_-]*$", "patternMessage": "Job name: only letters, digits, '-' and '_'.",
+      "arg": "--name={value}" },
+
+    { "key": "Mode",    "label": "Mode",           "kind": "choice",
+      "choices": [ "quick", "full", "verify" ], "default": "quick", "arg": "--mode" },
+
+    { "key": "Depth",   "label": "Scan depth",     "kind": "number", "min": 1, "max": 10, "default": 3,
+      "visibleWhen": "Mode=full", "arg": "--depth" },
+
+    { "key": "Threads", "label": "Threads",        "kind": "number", "min": 1, "max": 64, "default": 4, "arg": "-t" },
+
+    { "key": "Exclude", "label": "Exclude paths",  "kind": "memo",   "lines": 3,
+      "placeholder": "one path per line", "arg": "--exclude" },
+
+    { "key": "Verbose", "label": "Verbose output", "kind": "flag",   "arg": "--verbose" },
+    { "key": "DryRun",  "label": "Dry run",        "kind": "flag",   "default": true, "arg": "--dry-run" },
+    { "key": "Log",     "label": "Write a log file", "kind": "flag", "arg": "--log" },
+
+    { "key": "LogFile", "label": "Log file",       "kind": "file",   "filter": "Logs|*.log|All files|*",
+      "enabledWhen": "Log", "arg": "--log-file={value}" },
+
+    { "key": "Target",  "label": "Target",         "kind": "text",   "positional": true,
+      "placeholder": "host or path the tool works on" }
+  ]
+}

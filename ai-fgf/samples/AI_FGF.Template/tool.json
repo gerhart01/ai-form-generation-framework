@@ -1,0 +1,60 @@
+{
+  // AI_FGF tool template: every element a tool form needs.
+  // To build a form for a tool: copy this file, then for the tool's description
+  //   1. set title / executable / fixedArgs,
+  //   2. keep, edit or delete one field per option the tool takes,
+  //   3. run  AI_FGF.Check tool.json  until it prints PASS.
+  // Field kinds: text | file | folder | choice | number | flag.
+  // "arg": "-o" -> "-o <value>";  "arg": "--level={value}" -> one token;  flag -> arg when checked;
+  // "positional": true -> bare value after all options. Empty values are not passed.
+
+  "$schema": "../../schemas/tool.schema.json",   // completion and checking in VS Code / Visual Studio / Rider
+  "title": "Template tool",
+  "executable": "cmd",                 // the program to run (on PATH or a full path)
+  "fixedArgs": [ "/c", "echo" ],       // always passed first; the template just echoes its command line
+  "encoding": "oem",                   // "oem" (cmd, native tools, pwsh, .NET) or "utf8"
+  "timeoutSeconds": 600,               // stop a hung run; omit for no limit
+  "runButton": "▶ &Run",             // & marks the Alt mnemonic (Alt+R)
+  "presets": true,                     // Save/Load preset buttons
+  "busyOverlay": false,                // dim the window while running (hides the live log)
+  "themeButton": true,                 // "Theme…": the user picks accent / light-dark / tint (saved)
+  // "theme": { "accent": "#0F7B6C", "dark": false, "tint": 0.2 },   // the tool's own default colours
+  "resultsCsv": "{Output}\\results.csv", // optional: shown in the Results tab after a successful run
+
+  "fields": [
+    { "key": "Input",   "label": "Input file",     "kind": "file",   "required": true,
+      "filter": "All files|*.*",                   "arg": "--input" },
+
+    { "key": "Output",  "label": "Output folder",  "kind": "folder", "arg": "--out" },
+
+    { "key": "Name",    "label": "Job name",       "kind": "text",
+      "placeholder": "letters, digits, - and _",
+      "pattern": "^[A-Za-z0-9_-]*$", "patternMessage": "Job name: only letters, digits, '-' and '_'.",
+      "arg": "--name={value}" },
+
+    { "key": "Mode",    "label": "Mode",           "kind": "choice",
+      "choices": [ "quick", "full", "verify" ], "default": "quick", "arg": "--mode" },
+
+    // shown only for one mode: "visibleWhen" — hidden rows take no space and are not passed
+    { "key": "Depth",   "label": "Scan depth",     "kind": "number", "min": 1, "max": 10, "default": 3,
+      "visibleWhen": "Mode=full", "arg": "--depth" },
+
+    { "key": "Threads", "label": "Threads",        "kind": "number", "min": 1, "max": 64, "default": 4, "arg": "-t" },
+
+    // multi-line text: lines never wrap; grows from "lines" to "maxLines" (default 12) and widens the
+    // window for long lines, so it scrolls only when the screen is too small; "readOnly": true to show text
+    { "key": "Exclude", "label": "Exclude paths",  "kind": "memo",   "lines": 3,
+      "placeholder": "one path per line", "arg": "--exclude" },
+
+    { "key": "Verbose", "label": "Verbose output", "kind": "flag",   "arg": "--verbose" },
+    { "key": "DryRun",  "label": "Dry run",        "kind": "flag",   "default": true, "arg": "--dry-run" },
+    { "key": "Log",     "label": "Write a log file", "kind": "flag", "arg": "--log" },
+
+    // usable only when a flag is on: "enabledWhen" — conditions: Key, !Key, Key=value, Key!=value
+    { "key": "LogFile", "label": "Log file",       "kind": "file",   "filter": "Logs|*.log|All files|*.*",
+      "enabledWhen": "Log", "arg": "--log-file={value}" },
+
+    { "key": "Target",  "label": "Target",         "kind": "text",   "positional": true,
+      "placeholder": "host or path the tool works on" }
+  ]
+}

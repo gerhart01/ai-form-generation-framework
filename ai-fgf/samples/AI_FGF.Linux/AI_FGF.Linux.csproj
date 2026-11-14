@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- A tool window from tool.json on Linux (X11), macOS or Windows, via Avalonia.
+         Build for Linux: dotnet publish -c Release -r linux-x64 (framework-dependent) -->
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AI_FGF.Linux</RootNamespace>
+    <AssemblyName>AI_FGF.Linux</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI_FGF.Avalonia\AI_FGF.Avalonia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="tool.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

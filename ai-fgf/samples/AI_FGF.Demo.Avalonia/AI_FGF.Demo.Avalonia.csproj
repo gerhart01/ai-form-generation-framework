@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The WinForms demo, unchanged, on Avalonia: the same PingToolForm.cs and Program.cs,
+         compiled against AI_FGF.Avalonia instead of AI_FGF (WinForms). Runs on Linux too. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AI_FGF.Demo</RootNamespace>
+    <AssemblyName>AI_FGF.Demo.Avalonia</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the only difference from the WinForms project: which AI_FGF the names come from -->
+    <Using Include="AI_FGF.Avalonia" />
+    <Compile Include="..\AI_FGF.Demo\PingToolForm.cs" Link="PingToolForm.cs" />
+    <Compile Include="..\AI_FGF.Demo\Program.cs" Link="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI_FGF.Avalonia\AI_FGF.Avalonia.csproj" />
+  </ItemGroup>
+
+</Project>
