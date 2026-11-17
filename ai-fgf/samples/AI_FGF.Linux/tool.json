@@ -9,6 +9,7 @@
   "resultsCsv": "{Output}/results.csv",
 
   "fields": [
+    { "key": "Hint",    "label": "Fields marked * are required. Ctrl+Enter runs.", "kind": "note" },
     { "key": "Input",   "label": "Input file",     "kind": "file",   "required": true,
       "filter": "All files|*",                     "arg": "--input" },
 

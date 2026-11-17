@@ -2,18 +2,17 @@
 #
 #   pwsh ai-fgf/tools/New-PublicArchive.ps1 [-Output dir] [-AllowDirty] [-SkipBuild]
 #
-# The repository: AGENT_GUIDE.md (the instructions, read first) and ai-fgf/ (the framework) are published;
-# internal/ is not.
+# The repository: ai-fgf/ (the framework, ai-fgf/AGENT_GUIDE.md first) is published; ai-fgf/internal/ is not.
 #
 # The archive is `git archive HEAD`: committed files only, so nothing local or generated (bin/, obj/,
 # artifacts/, a local CLAUDE.md) gets in, and every path marked export-ignore in .gitattributes is left
-# out (internal/, ai-fgf/tests/, .gitattributes). The test projects are also removed from AI_FGF.slnx inside the zip.
+# out (ai-fgf/internal/, ai-fgf/tests/, .gitattributes). The test projects are also removed from AI_FGF.slnx inside the zip.
 # The script then opens the zip and fails if
-#   - AGENT_GUIDE.md or ai-fgf/AI_FGF.slnx is missing; any entry is under internal/ or ai-fgf/tests/, or is a CLAUDE.md;
+#   - ai-fgf/AGENT_GUIDE.md or ai-fgf/AI_FGF.slnx is missing; any entry is under ai-fgf/internal/ or ai-fgf/tests/, or is a CLAUDE.md;
 #   - any entry is a binary or build output: under bin/, obj/, artifacts/, packages/, TestResults/, .vs/,
 #     with a binary extension (.dll, .exe, .pdb, .nupkg, .zip, ...), or with NUL bytes in it (any other binary);
-#   - any text file contains a line of internal/publish-denylist.txt (if that file exists: it lives in
-#     internal/ because the words themselves must not be published);
+#   - any text file contains a line of ai-fgf/internal/publish-denylist.txt (if that file exists: it lives in
+#     ai-fgf/internal/ because the words themselves must not be published);
 #   - the extracted archive does not build (`dotnet build ai-fgf/AI_FGF.slnx`, 0 errors; skip with -SkipBuild).
 # Output: ai-fgf/artifacts/publish/AI_FGF-<version>-<yyyyMMdd>-<commit>.zip. Exit code 0 = ready to publish.
 param(
@@ -26,7 +25,7 @@ param(
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$root = (git -C $PSScriptRoot rev-parse --show-toplevel).Trim()   # the repository: AGENT_GUIDE.md, ai-fgf/, internal/
+$root = (git -C $PSScriptRoot rev-parse --show-toplevel).Trim()   # the repository; the framework (and its internal/) is ai-fgf/
 $framework = Join-Path $root "ai-fgf"
 Push-Location $root
 try {
@@ -67,11 +66,11 @@ try {
     # ---- check what is inside
     $problems = New-Object System.Collections.Generic.List[string]
     $deny = @()
-    $denyFile = Join-Path $root "internal/publish-denylist.txt"
+    $denyFile = Join-Path $framework "internal/publish-denylist.txt"
     if (Test-Path $denyFile) {
         $deny = Get-Content $denyFile -Encoding UTF8 | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith("#") }
     } else {
-        Write-Host "note  internal/publish-denylist.txt not found - only the structure is checked"
+        Write-Host "note  ai-fgf/internal/publish-denylist.txt not found - only the structure is checked"
     }
     $binaryExt = @(".dll", ".exe", ".pdb", ".nupkg", ".snupkg", ".zip", ".7z", ".rar", ".so", ".dylib", ".lib", ".obj", ".o", ".a",
                    ".msi", ".cache", ".ilk", ".exp", ".pch", ".winmd", ".resources", ".bin")
@@ -85,7 +84,7 @@ try {
             if (-not $path -or $path.EndsWith("/")) { continue }
             $files++
             [void]$seen.Add($path)
-            if ($path -match '^(internal/|\.gitattributes$)') { $problems.Add("internal file in the archive: $path") }
+            if ($path -match '^(ai-fgf/internal/|internal/|\.gitattributes$)') { $problems.Add("internal file in the archive: $path") }
             if ($path -match '^ai-fgf/tests/') { $problems.Add("test project in the archive: $path") }
             if ($path -eq 'ai-fgf/AI_FGF.slnx') {
                 $reader = New-Object System.IO.StreamReader($e.Open())
@@ -112,7 +111,7 @@ try {
             }
         }
     } finally { $archive.Dispose() }
-    foreach ($required in "AGENT_GUIDE.md", "ai-fgf/AI_FGF.slnx", "ai-fgf/README.md") {
+    foreach ($required in "ai-fgf/AGENT_GUIDE.md", "ai-fgf/AI_FGF.slnx", "ai-fgf/README.md") {
         if (-not $seen.Contains($required)) { $problems.Add("missing from the archive: $required") }
     }
 

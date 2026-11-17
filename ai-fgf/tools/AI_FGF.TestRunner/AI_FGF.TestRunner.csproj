@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The test run in a window (pwsh tools/Test-GUI.ps1). .NET 11 only: it is built on the board layout. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net11.0-windows</TargetFrameworks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <RootNamespace>AI_FGF.TestRunner</RootNamespace>
+    <AssemblyName>AI_FGF.TestRunner</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI_FGF\AI_FGF.csproj" />
+  </ItemGroup>
+
+</Project>

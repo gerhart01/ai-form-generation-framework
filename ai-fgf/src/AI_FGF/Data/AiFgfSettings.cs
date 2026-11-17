@@ -32,16 +32,10 @@ public static class AiFgfSettings
 
     /// <summary>Write field values to a preset file.</summary>
     public static void SavePreset(string path, FieldSet fields)
-        => Save(path, new FormSettingsData { Fields = fields.GetValues() });
+        => Save(path, new FormSettingsData { Fields = fields.GetPersistableValues() });
 
     /// <summary>Apply a preset file's values to the fields. Returns false if the file had none.</summary>
-    public static bool LoadPreset(string path, FieldSet fields)
-    {
-        var data = Load(path);
-        if (data.Fields.Count == 0) return false;
-        fields.SetValues(data.Fields);
-        return true;
-    }
+    public static bool LoadPreset(string path, FieldSet fields) => ToolPresets.Load(path, fields, (_, _) => { });
 
     // ------------------------------------------------------ window placement
 

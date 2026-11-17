@@ -18,15 +18,9 @@ public static class AiFgfSettings
 
     public static void Save(string path, FormSettingsData data) => AiFgfSettingsStore.Save(path, data);
 
-    public static void SavePreset(string path, FieldSet fields) => Save(path, new FormSettingsData { Fields = fields.GetValues() });
+    public static void SavePreset(string path, FieldSet fields) => Save(path, new FormSettingsData { Fields = fields.GetPersistableValues() });
 
-    public static bool LoadPreset(string path, FieldSet fields)
-    {
-        var data = Load(path);
-        if (data.Fields.Count == 0) return false;
-        fields.SetValues(data.Fields);
-        return true;
-    }
+    public static bool LoadPreset(string path, FieldSet fields) => ToolPresets.Load(path, fields, (_, _) => { });
 
     /// <summary>The window's placement (device pixels, its DPI) for saving.</summary>
     public static WindowPlacement Capture(Window window)

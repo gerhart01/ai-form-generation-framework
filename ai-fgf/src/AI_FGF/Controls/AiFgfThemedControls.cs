@@ -42,14 +42,14 @@ public sealed class AiFgfProgressBar : ProgressBar
         float scale = DeviceDpi / 96f;
         Color back = Parent?.BackColor is { A: 255 } pb ? pb : t.App;
         Color trackBody = AiFgfColor.Mix(t.App, t.Border, 0.6);
-        Bitmap? track = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(Width, Height, scale, trackBody, back, t.Border, 0f, 1f));
+        Bitmap? track = AiFgfDirect3D.Draw(new AiFgfFace(Width, Height, scale, trackBody, back, t.Border, 0f, 1f));
         if (track is null) return false;
         e.Graphics.DrawImageUnscaled(track, 0, 0);
         int w = FillWidth(Width);
         if (w >= 4)
         {
             bool glow = _look == AiFgfButtonStyle.Glow;
-            Bitmap? fill = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(w, Height, scale, t.Accent, trackBody, Color.Transparent, 0f, 0f,
+            Bitmap? fill = AiFgfDirect3D.Draw(new AiFgfFace(w, Height, scale, t.Accent, trackBody, Color.Transparent, 0f, 0f,
                 glow ? AiFgfColor.Mix(t.Accent, Color.White, 0.25) : default));
             if (fill is null) return false;
             e.Graphics.DrawImageUnscaled(fill, 0, 0);
@@ -135,7 +135,7 @@ public sealed class AiFgfTabControl : TabControl
             Rectangle r = GetTabRect(i);
             bool selected = i == SelectedIndex;
             Color body = selected ? (TabPages[i].BackColor.A == 255 ? TabPages[i].BackColor : t.App) : AiFgfColor.Mix(t.App, t.Border, 0.25);
-            Bitmap? face = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(r.Width, r.Height, scale, body, t.App, t.Border, 0f, selected ? 0f : 1f,
+            Bitmap? face = AiFgfDirect3D.Draw(new AiFgfFace(r.Width, r.Height, scale, body, t.App, t.Border, 0f, selected ? 0f : 1f,
                 selected && glow ? t.Accent : default, selected && glow && Focused));
             if (face is null) return false;
             faces[i] = face;

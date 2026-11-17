@@ -23,7 +23,7 @@ namespace AI_FGF;
 /// parsing, the status bar — is handled here. Emit progress from your tool as
 /// <c>##PROGRESS##|activity|percent|status</c> lines on stdout and the bar follows.
 /// </summary>
-public abstract class ToolForm : Form
+public abstract class ToolForm : Form, IToolRunView
 {
     private readonly AiFgfLog _log = new();
     private readonly AiFgfDataGridPanel _results = new();
@@ -35,12 +35,12 @@ public abstract class ToolForm : Form
     private Button _runButton = null!;
     private Button _cancelButton = null!;
     private readonly FieldSet _fields;
-    private readonly CliXmlLogFilter _clixml = new();
     private readonly Dictionary<string, ComboBox> _markerCombos = new(StringComparer.Ordinal);
     private AiFgfBusyOverlay? _busy;
-    private CancellationTokenSource? _cts;
-    private volatile bool _running;
+    private volatile bool _running;   // what the view shows (SetRunning); the controller owns the run itself
     private volatile bool _closing;
+    // the controller: validate -> build -> run -> report, shared with the Avalonia ToolForm (this form is its view)
+    private readonly ToolRunController _controller;
 
     /// <summary>The output log, for appending from <see cref="BuildRun"/> or <see cref="OnRunFinished"/>.</summary>
     protected AiFgfLog Log => _log;
@@ -90,15 +90,36 @@ public abstract class ToolForm : Form
     public FieldSet FieldValues => _fields;
     public AiFgfLog LogView => _log;
     public AiFgfDataGridPanel ResultsView => _results;
-    /// <summary>Completes when the run started by <see cref="StartRun"/> (Run button, Ctrl+Enter, F5) has finished.</summary>
+    /// <summary>Completes when the run started by <see cref="StartRun()"/> (Run button, Ctrl+Enter, F5) has finished.</summary>
     public Task? CurrentRun { get; private set; }
 
     /// <summary>What Run, Ctrl+Enter and F5 do: validate and start a run.</summary>
     public void StartRun()
     {
-        if (_running) return;
-        CurrentRun = RunAsync();
+        if (_controller.IsRunning) return;
+        CurrentRun = _controller.RunAsync();
     }
+#if NET11_0_OR_GREATER
+
+    private Func<ProcessRunner?>? _nextRun;
+    private readonly System.Collections.Generic.List<Control> _actionButtons = new();
+
+    /// <summary>
+    /// .NET 11: start a run of another command - a second action of the form ("Stop" beside "Start"): validated, logged,
+    /// cancelled and timed exactly as the Run button's, by the same controller; <paramref name="build"/> takes the place
+    /// of <see cref="BuildRun"/> for this one run.
+    /// </summary>
+    protected void StartRun(Func<ProcessRunner?> build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        if (_controller.IsRunning) return;
+        _nextRun = build;
+        CurrentRun = _controller.RunAsync();
+    }
+
+    /// <summary>.NET 11: a button of a second action - disabled while any run is going, as the Run button is.</summary>
+    protected void AddActionButton(Control button) { if (!_actionButtons.Contains(button)) _actionButtons.Add(button); }
+#endif
 
     /// <summary>The marker prefix your tool prints for progress updates. Default <c>##PROGRESS##</c>.</summary>
     protected string ProgressMarker { get; set; } = "##PROGRESS##";
@@ -113,7 +134,7 @@ public abstract class ToolForm : Form
     protected virtual Keys CancelShortcut => Keys.Escape;
 
     /// <summary>The window title.</summary>
-    protected virtual string FormTitle => "AI_FGF Tool";
+    protected virtual string FormTitle => "AI Forms Generation Framework tool";
 
     /// <summary>The Windows 11 backdrop material for this window (no-op pre-Win11). Default Mica.</summary>
     protected virtual BackdropKind Backdrop => BackdropKind.Mica;
@@ -151,24 +172,7 @@ public abstract class ToolForm : Form
     public AiFgfButtonStyle EffectiveButtonStyle => AiFgfEffects.Resolve(ButtonStyle);
 
     /// <summary>Give every <see cref="AiFgfButton"/> of the form <see cref="EffectiveButtonStyle"/> (also after <see cref="AiFgfEffects.Changed"/>).</summary>
-    protected void ApplyButtonStyle()
-    {
-        AiFgfButtonStyle look = EffectiveButtonStyle;
-        Apply(this);
-        void Apply(Control parent)
-        {
-            foreach (Control c in parent.Controls)
-            {
-                if (c is AiFgfButton b) b.Look = look;
-#if NET11_0_OR_GREATER
-                if (c is AiFgfProgressBar p) p.Look = look;   // .NET 11: the progress bar takes the buttons' 3D style too
-                if (c is AiFgfTabControl tabs) tabs.Look = look;   // .NET 11: and so do the tab headers
-                if (c is AiFgfNumber number) number.Look = look;   // .NET 11: and the spin buttons
-#endif
-                Apply(c);
-            }
-        }
-    }
+    protected void ApplyButtonStyle() => AiFgf.ApplyLook(this, EffectiveButtonStyle);   // .NET 11: every 3D control, not only the buttons
 
     private void OnEffectsChanged(object? sender, EventArgs e)
     {
@@ -178,6 +182,7 @@ public abstract class ToolForm : Form
 
     protected ToolForm()
     {
+        _controller = new ToolRunController(this);
         _progressLabel.ForeColor = AiFgfTheme.Current.Text;
 
         var scaffold = FormScaffold.For(this)
@@ -303,7 +308,7 @@ public abstract class ToolForm : Form
             AiFgfSettings.Save(path, new FormSettingsData
             {
                 Window = AiFgfSettings.Capture(this),
-                Fields = _fields.GetValues(),
+                Fields = _fields.GetPersistableValues(),   // never a password
                 Theme = ThemeButton ? AiFgfTheme.Current.Choice?.ToString() : null,
                 Buttons = ThemeButton && AiFgfEffects.UserButtons is { } b ? AiFgfEffects.Name(b) : null,
             });
@@ -330,28 +335,10 @@ public abstract class ToolForm : Form
     /// Save the field values as a JSON preset. A read-only, locked or unreachable target is
     /// reported in the log (returns false) instead of crashing the click handler.
     /// </summary>
-    protected bool SavePresetTo(string path)
-    {
-        try
-        {
-            AiFgfSettings.SavePreset(path, _fields);
-            _log.Success($"Preset saved: {path}");
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            _log.Error($"Could not save preset {path}: {ex.Message}");
-            return false;
-        }
-    }
+    protected bool SavePresetTo(string path) => ToolPresets.Save(path, _fields, ((IToolRunView)this).AppendLog);
 
     /// <summary>Apply a JSON preset to the fields; false (with a log line) if it had no values.</summary>
-    protected bool LoadPresetFrom(string path)
-    {
-        if (AiFgfSettings.LoadPreset(path, _fields)) { _log.Success($"Preset loaded: {path}"); return true; }
-        _log.Warn($"No field values in {path}");
-        return false;
-    }
+    protected bool LoadPresetFrom(string path) => ToolPresets.Load(path, _fields, ((IToolRunView)this).AppendLog);
 
     protected override void Dispose(bool disposing)
     {
@@ -412,86 +399,50 @@ public abstract class ToolForm : Form
     /// <summary>Switch to the Results tab (e.g. from <see cref="OnRunFinished"/> after loading a grid).</summary>
     protected void ShowResultsTab() => _tabs.SelectedTab = _tabs.TabPages[1];
 
-    // --------------------------------------------------------------- run loop
+    // --------------------------------------------------------------- the view of the run (IToolRunView)
 
-    // The click handler discards this task (`_ = RunAsync()`), so nothing may escape it:
-    // every exception — from validation, the subclass's BuildRun, starting the process or
-    // OnRunFinished — is reported in the log, and the running state is always cleared.
-    private async Task RunAsync()
+    IReadOnlyList<FieldError> IToolRunView.ValidateInputs() => _fields.Validate();
+#if NET11_0_OR_GREATER
+    ProcessRunner? IToolRunView.BuildRun()
     {
-        if (_running) return;
-        bool started = false;
-        ProcessRunner? runner = null;
-        try
+        Func<ProcessRunner?>? next = _nextRun;
+        _nextRun = null;
+        return next is null ? BuildRun() : next();
+    }
+#else
+    ProcessRunner? IToolRunView.BuildRun() => BuildRun();
+#endif
+    TimeSpan? IToolRunView.RunTimeout => RunTimeout;
+    string IToolRunView.ProgressMarker => ProgressMarker;
+    bool IToolRunView.IsClosing => _closing;
+    void IToolRunView.SetStatus(string text) { if (!_closing && !IsDisposed) RunOnUi(() => _status.Text = text); }
+    void IToolRunView.SetRunning(bool running) => SetRunning(running);
+    void IToolRunView.ShowProgress(string activity, int percent, string status) => UpdateProgress(activity, percent, status);
+    void IToolRunView.RunFinished(ProcessResult result) => OnRunFinished(result);
+
+    void IToolRunView.AppendLog(string text, RunLogTone tone)
+    {
+        switch (tone)
         {
-            // Non-modal validation: invalid fields are tinted, errors go to the log and status bar.
-            var errors = _fields.Validate();
-            if (errors.Count > 0)
-            {
-                foreach (FieldError err in errors) _log.Error("✗ " + err.Message);
-                _status.Text = errors.Count == 1 ? errors[0].Message : AiFgfText.Format(AiFgfText.FieldsNeedAttention, errors.Count);
-                return;
-            }
-
-            runner = BuildRun();
-            if (runner is null) return; // subclass aborted (and reported why)
-
-            _cts = new CancellationTokenSource();
-            _clixml.Reset();
-            runner.Output += OnOutput;
-            if (runner.TimeoutLimit is null && RunTimeout is { } limit) runner.Timeout(limit);
-
-            started = true;
-            SetRunning(true);
-            ResetProgress(AiFgfText.Starting);
-            _log.Append($"> {runner.CommandLine}", AiFgfTheme.Current.LogAccent);
-
-            ProcessResult result = await runner.RunAsync(_cts.Token);
-            foreach (LogLine rendered in _clixml.Flush()) Emit(rendered);   // any CLIXML left mid-batch
-            if (result.HandlerError is { } handlerError)
-                _log.Error($"ERROR in an output handler: {handlerError.GetType().Name}: {handlerError.Message}");
-
-            string took = FormatDuration(result.Duration);
-            if (result.TimedOut)
-            {
-                _log.Warn($"[timed out after {took} — process tree stopped]");
-                UpdateProgress(AiFgfText.TimedOut, 0, "");
-            }
-            else if (result.Cancelled)
-            {
-                _log.Warn($"[cancelled after {took}]");
-                UpdateProgress(AiFgfText.Cancelled, 0, "");
-            }
-            else
-            {
-                // colour and wording follow the exit-code policy (warnings are not errors)
-                var (colour, activity) = result.Outcome switch
-                {
-                    RunOutcome.Success => (AiFgfTheme.Current.LogSuccess, AiFgfText.Done),
-                    RunOutcome.Warning => (AiFgfTheme.Current.LogWarn, AiFgfText.DoneWithWarnings),
-                    _ => (AiFgfTheme.Current.LogError, AiFgfText.DoneWithErrors),
-                };
-                string detail = result.OutcomeMessage.Length > 0 && !result.OutcomeMessage.StartsWith("exit code", StringComparison.Ordinal)
-                    ? $" — {result.OutcomeMessage}" : "";
-                _log.Append($"[finished — exit code {result.ExitCode} in {took}{detail}]", colour);
-                UpdateProgress(activity, 100, result.OutcomeMessage);
-            }
-
-            try { if (!_closing) OnRunFinished(result); } catch (Exception ex) { _log.Error("post-run: " + ex.Message); }
+            case RunLogTone.Error: _log.Error(text); break;
+            case RunLogTone.Warning: _log.Warn(text); break;
+            case RunLogTone.Accent: _log.Append(text, AiFgfTheme.Current.LogAccent); break;
+            case RunLogTone.Success: _log.Append(text, AiFgfTheme.Current.LogSuccess); break;
+            default: _log.Line(text); break;
         }
-        catch (Exception ex)
-        {
-            _log.Error("ERROR: " + ex.Message);
-            UpdateProgress(AiFgfText.Error, 0, "");
-            if (!started) _status.Text = AiFgfText.Error + ": " + ex.Message;
-        }
-        finally
-        {
-            if (runner is not null) runner.Output -= OnOutput;
-            if (started) SetRunning(false);
-            _cts?.Dispose();
-            _cts = null;
-        }
+    }
+
+    bool IToolRunView.HandleOutputLine(string text)
+    {
+        foreach (var (marker, combo) in _markerCombos)
+            if (text.StartsWith(marker, StringComparison.Ordinal)) { HandleChoiceMarker(combo, text); return true; }
+        return false;
+    }
+
+    private void RunOnUi(Action action)
+    {
+        if (InvokeRequired) { try { BeginInvoke(action); } catch (InvalidOperationException) { } return; }
+        action();
     }
 
     /// <summary>
@@ -505,7 +456,7 @@ public abstract class ToolForm : Form
         _log.MarkClosing();
         // Cancelling kills the process tree synchronously (ProcessRunner registers the kill on
         // the token), so nothing is orphaned even though the app may exit right after this.
-        try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
+        _controller.Cancel();
         _busy?.HideOverlay();
         SaveSettings();
         AiFgfEffects.Changed -= OnEffectsChanged;
@@ -513,34 +464,9 @@ public abstract class ToolForm : Form
     }
 
     /// <summary>"0.4 s", "12.3 s", "4:05", "1:02:03".</summary>
-    public static string FormatDuration(TimeSpan d)
-    {
-        if (d < TimeSpan.FromMinutes(1)) return d.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
-        if (d < TimeSpan.FromHours(1)) return d.ToString(@"m\:ss", CultureInfo.InvariantCulture);
-        return ((int)d.TotalHours).ToString(CultureInfo.InvariantCulture) + d.ToString(@"\:mm\:ss", CultureInfo.InvariantCulture);
-    }
+    public static string FormatDuration(TimeSpan d) => ToolRunController.FormatDuration(d);
 
-    private void CancelRun() { try { _cts?.Cancel(); } catch { } }
-
-    private void OnOutput(OutputKind kind, string line)
-    {
-        // Convert any PowerShell CLIXML (minishell / -OutputFormat Xml) back to text; other output
-        // passes straight through. A batch may span several lines, so this can emit 0 or many.
-        foreach (LogLine rendered in _clixml.Feed(kind, line)) Emit(rendered);
-    }
-
-    private void Emit(LogLine rendered)
-    {
-        foreach (var (marker, combo) in _markerCombos)
-            if (rendered.Text.StartsWith(marker, StringComparison.Ordinal)) { HandleChoiceMarker(combo, rendered.Text); return; }
-        if (rendered.Text.StartsWith(ProgressMarker, StringComparison.Ordinal)) { HandleProgress(rendered.Text); return; }
-        switch (rendered.Severity)
-        {
-            case LogSeverity.Error: _log.Error(rendered.Text); break;
-            case LogSeverity.Warning: _log.Warn(rendered.Text); break;
-            default: _log.Line(rendered.Text); break;
-        }
-    }
+    private void CancelRun() => _controller.Cancel();
 
     private void SetRunning(bool running)
     {
@@ -549,6 +475,9 @@ public abstract class ToolForm : Form
         if (InvokeRequired) { try { BeginInvoke(() => SetRunning(running)); } catch { } return; }
         _runButton.Enabled = !running;
         _cancelButton.Enabled = running;
+#if NET11_0_OR_GREATER
+        foreach (Control action in _actionButtons) action.Enabled = !running;
+#endif
         _status.Text = running ? AiFgfText.Running : AiFgfText.Idle;
         UseWaitCursor = running;
         if (ShowBusyOverlay)
@@ -565,8 +494,6 @@ public abstract class ToolForm : Form
 
     // --------------------------------------------------------------- progress
 
-    private void ResetProgress(string text) => UpdateProgress(text, 0, "");
-
     private void HandleChoiceMarker(ComboBox combo, string line)
     {
         // <marker>|value   — add value to the combo's drop-down (deduplicated, case-insensitive)
@@ -576,18 +503,6 @@ public abstract class ToolForm : Form
         if (combo.InvokeRequired) { try { combo.BeginInvoke(() => HandleChoiceMarker(combo, line)); } catch { } return; }
         foreach (object? item in combo.Items) if (string.Equals(item?.ToString(), value, StringComparison.OrdinalIgnoreCase)) return;
         combo.Items.Add(value);
-    }
-
-    private void HandleProgress(string line)
-    {
-        // ##PROGRESS##|<activity>|<percent>|<status>   (status may contain '|', so cap the split)
-        string[] parts = line.Split('|', 4);
-        string activity = parts.Length > 1 ? parts[1] : "";
-        int pct = 0;
-        if (parts.Length > 2 && double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out double d))
-            pct = (int)Math.Round(d);
-        string status = parts.Length > 3 ? parts[3] : "";
-        UpdateProgress(activity, pct, status);
     }
 
     private void UpdateProgress(string activity, int pct, string status)

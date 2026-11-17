@@ -22,6 +22,9 @@
   "resultsCsv": "{Output}\\results.csv", // optional: shown in the Results tab after a successful run
 
   "fields": [
+    // a note: a line of text, no value (.NET 11) - a hint, or a status line carried over from an old form
+    { "key": "Hint",    "label": "Fields marked * are required. Ctrl+Enter runs.", "kind": "note" },
+
     { "key": "Input",   "label": "Input file",     "kind": "file",   "required": true,
       "filter": "All files|*.*",                   "arg": "--input" },
 

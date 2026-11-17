@@ -55,6 +55,20 @@ public sealed class AiFgfDataGridPanel : DockPanel
     /// <summary>Show a table (null clears).</summary>
     public void Show(DataTable? table)
     {
+        // follow the table as rows are added or removed later (a run filling it live): the rows are copied for display,
+        // so new rows used to stay out of the grid, and the count with them
+        if (_table is not null)
+        {
+            _table.RowChanged -= OnTableChanged;
+            _table.RowDeleted -= OnTableChanged;
+            _table.TableCleared -= OnTableCleared;
+        }
+        if (table is not null)
+        {
+            table.RowChanged += OnTableChanged;
+            table.RowDeleted += OnTableChanged;
+            table.TableCleared += OnTableCleared;
+        }
         _table = table;
         _grid.Columns.Clear();
         if (table is not null)
@@ -64,6 +78,16 @@ public sealed class AiFgfDataGridPanel : DockPanel
     }
 
     public void ShowCsv(string path) => Show(AiFgfCsv.Read(path));
+
+    private void OnTableChanged(object? sender, DataRowChangeEventArgs e) => TableChanged();
+
+    private void OnTableCleared(object? sender, DataTableClearEventArgs e) => TableChanged();
+
+    private void TableChanged()
+    {
+        if (!global::Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) { global::Avalonia.Threading.Dispatcher.UIThread.Post(TableChanged); return; }
+        ApplyFilter();
+    }
 
     /// <summary>The rows shown (after the filter), as cell strings.</summary>
     public IReadOnlyList<string[]> VisibleRows { get; private set; } = Array.Empty<string[]>();

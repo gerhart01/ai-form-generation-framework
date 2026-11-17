@@ -188,10 +188,25 @@ public static class AiFgf
                 // the window's DPI: a nested panel's DeviceDpi can lag behind it after a DPI change (120 in a 240-DPI form)
                 int dpi = bar.FindForm()?.DeviceDpi ?? bar.DeviceDpi;
                 int Px(int logical) => (int)Math.Round(logical * dpi / 96.0, MidpointRounding.AwayFromZero);
-                int tallest = kids.Max(Height), gap = Px(logicalGap);
+                int gap = Px(logicalGap);
+                // each wrapped row is centred on its own tallest control: centred on the tallest of the whole panel, a row
+                // of short controls under a row with a two-line button sat 12 px low against its neighbours. The rows are
+                // worked out the way the panel wraps (widths and side margins only, which centring does not change).
+                var rowOf = new Dictionary<Control, int>();
+                int avail = bar.ClientSize.Width - bar.Padding.Horizontal, x = 0, row = 0;
                 foreach (Control c in kids)
                 {
-                    int spare = tallest - Height(c);
+                    (int l0, int r0) = logicalSide is int s0 ? (s0, s0) : sides.TryGetValue(c, out var o0) ? o0 : (c.Margin.Left, c.Margin.Right);
+                    int w = c.Width + Px(l0) + Px(r0);
+                    if (bar.WrapContents && avail > 0 && x > 0 && x + w > avail) { row++; x = 0; }
+                    rowOf[c] = row;
+                    x += w;
+                    if (bar.GetFlowBreak(c)) { row++; x = 0; }
+                }
+                var tallestOf = kids.GroupBy(c => rowOf[c]).ToDictionary(g => g.Key, g => g.Max(Height));
+                foreach (Control c in kids)
+                {
+                    int spare = tallestOf[rowOf[c]] - Height(c);
                     (int l, int r) = logicalSide is int side ? (side, side) : sides.TryGetValue(c, out var own) ? own : (c.Margin.Left, c.Margin.Right);
                     int left = Px(l), right = Px(r);
                     var m = new Padding(left, gap + spare / 2, right, gap + spare - spare / 2);
@@ -209,6 +224,7 @@ public static class AiFgf
         };
         bar.ControlRemoved += (_, e) => sides.Remove(e.Control!);
         bar.DpiChangedAfterParent += (_, _) => Centre();
+        bar.ClientSizeChanged += (_, _) => Centre();   // a new width can wrap the controls into other rows
         bar.FontChanged += (_, _) => Centre();
         bar.HandleCreated += (_, _) => Centre();
         Centre();
@@ -268,6 +284,51 @@ public static class AiFgf
         ThousandsSeparator = false,
     };
 
+#if NET11_0_OR_GREATER
+    /// <summary>.NET 11: an on/off switch (<see cref="AiFgfToggle"/>) — a check box drawn as a pill with a sliding knob.</summary>
+    public static CheckBox Toggle(string text, bool on = false) => new AiFgfToggle
+    {
+        Text = text,
+        Checked = on,
+        Margin = new Padding(0, 6, 16, 0),
+        ForeColor = T.Text,
+    };
+#endif
+
+    /// <summary>
+    /// Give <paramref name="root"/> and every control inside it the button style <paramref name="look"/>: the buttons and,
+    /// on .NET 11, every other control with a Direct3D look - progress bars, tab headers, spin buttons, switches, sliders, radio buttons, check boxes, notes.
+    /// ToolForm does this itself; a form built with FormScaffold calls it (again after <c>AiFgfEffects.Changed</c>).
+    /// </summary>
+#if NET11_0_OR_GREATER
+    public
+#else
+    internal
+#endif
+    static void ApplyLook(Control root, AiFgfButtonStyle look)
+    {
+        Set(root);
+        foreach (Control c in root.Controls) ApplyLook(c, look);
+
+        void Set(Control c)
+        {
+            switch (c)
+            {
+                case AiFgfButton b: b.Look = look; break;
+#if NET11_0_OR_GREATER
+                case AiFgfProgressBar p: p.Look = look; break;
+                case AiFgfTabControl tabs: tabs.Look = look; break;
+                case AiFgfNumber number: number.Look = look; break;
+                case AiFgfToggle toggle: toggle.Look = look; break;
+                case AiFgfSlider slider: slider.Look = look; break;
+                case AiFgfRadio radio: radio.Look = look; break;
+                case AiFgfCheck check: check.Look = look; break;
+                case AiFgfNote note: note.Look = look; break;
+#endif
+            }
+        }
+    }
+
     public static CheckBox Check(string text, bool @checked = false) => new AiFgfCheck
     {
         Text = text,
@@ -276,6 +337,11 @@ public static class AiFgf
         Margin = new Padding(0, 6, 16, 0),
         ForeColor = T.Text,
     };
+
+#if NET11_0_OR_GREATER
+    /// <summary>.NET 11: a note (<see cref="AiFgfNote"/>) - a line of text; a Direct3D plate in the Raised and Glow looks.</summary>
+    public static Label Note(string text) => new AiFgfNote { Text = text };
+#endif
 
     public static Label Label(string text, bool subtle = false) => new()
     {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-fgf.local/schemas/tool.schema.json",
-  "title": "AI_FGF tool spec (tool.json)",
+  "title": "AI Forms Generation Framework tool spec (tool.json)",
   "type": "object",
   "properties": {
     "$schema": {
@@ -170,6 +170,51 @@
       ],
       "description": "Key under which settings are saved (default: derived from the title; \"\" = do not persist)."
     },
+    "actions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The button's caption (an ampersand marks the Alt mnemonic)."
+          },
+          "executable": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Another program to run; empty runs the spec's executable."
+          },
+          "fixedArgs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments in place of the spec's fixedArgs (e.g. [\"stop\"]); omitted keeps the spec's."
+          },
+          "fields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys of the fields it passes; omitted passes every field (as the Run button does)."
+          }
+        },
+        "description": "One more button of a ToolSpec (.NET 11): its own command from the same fields - \"Stop\" beside \"Start\", \"Check\" before \"Deploy\".",
+        "additionalProperties": false
+      },
+      "description": "More buttons beside Run (.NET 11), each running its own command from the same fields: \"Start\" / \"Stop\" of a service, \"Check\" before \"Deploy\". An action replaces fixedArgs, and may run another executable and pass only some fields. The Run button stays the spec's own command."
+    },
     "fields": {
       "type": "array",
       "items": {
@@ -205,6 +250,18 @@
             "type": "boolean",
             "description": "A memo that shows text instead of taking input."
           },
+          "switch": {
+            "type": "boolean",
+            "description": "A flag shown as an on/off switch instead of a check box (.NET 11, WinForms and Avalonia; a check box on .NET 10)."
+          },
+          "password": {
+            "type": "boolean",
+            "description": "A text field whose input is hidden (a password, a token); never saved with the form's settings (.NET 11; plain text on .NET 10)."
+          },
+          "radio": {
+            "type": "boolean",
+            "description": "A choice shown as radio buttons, all choices at once, instead of a drop-down (.NET 11; a drop-down on .NET 10). Not with editable."
+          },
           "kind": {
             "enum": [
               "text",
@@ -213,7 +270,8 @@
               "choice",
               "number",
               "flag",
-              "memo"
+              "memo",
+              "note"
             ],
             "description": "The input: text, file, folder, choice, number, flag or memo."
           },
@@ -310,7 +368,7 @@
               "string",
               "null"
             ],
-            "description": "How the value becomes command-line arguments: \"-o\" emits -o value (skipped when empty); \"--level={value}\" emits one token; for a flag, the argument is emitted when checked. Leave empty and set Positional for a bare value."
+            "description": "How the value becomes command-line arguments: \"-o\" emits -o value (skipped when empty); \"--level={value}\" emits one token ({value} or the field's own {Key}; another field's {Key} is that field's value); for a flag, the argument is emitted when checked. Leave empty and set Positional for a bare value."
           },
           "positional": {
             "type": "boolean",

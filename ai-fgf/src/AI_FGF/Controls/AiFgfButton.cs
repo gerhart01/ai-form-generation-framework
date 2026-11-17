@@ -23,7 +23,7 @@ public sealed class AiFgfButton : Button
     public AiFgfButtonStyle Look
     {
         get => _look;
-        set { if (_look != value) { _look = value; Invalidate(); } }
+        set { if (_look != value) { _look = value; Invalidate(); UpdateMagic(); } }
     }
 
     private bool Effects => _look != AiFgfButtonStyle.Flat;
@@ -57,6 +57,59 @@ public sealed class AiFgfButton : Button
     private PointF _pointer = new(-1f, -1f);
     private System.Windows.Forms.Timer? _animTimer;
     private float _hoverAnim, _pressAnim;
+
+#if NET11_0_OR_GREATER
+    /// <summary>
+    /// .NET 11: the glow is magic light — the halo's hue drifts around the button like mother-of-pearl, a soft band of
+    /// light sweeps the face, sparks twinkle in the halo and it breathes. One cycle is <see cref="MagicPhases"/> frames
+    /// (3.2 s), each drawn once and then taken from the face cache. It moves only on an enabled, visible Glow button,
+    /// and not at all when Windows has its animations turned off (the light stays, still).
+    /// </summary>
+    public const int MagicPhases = 32;
+
+    private int _magicPhase;
+    private System.Windows.Forms.Timer? _magicTimer;
+
+    /// <summary>The frame of the magic light now, 0..<see cref="MagicPhases"/>-1 (tests and screenshots set it).</summary>
+    [System.ComponentModel.Browsable(false), System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int MagicPhase
+    {
+        get => _magicPhase;
+        set { int v = ((value % MagicPhases) + MagicPhases) % MagicPhases; if (v != _magicPhase) { _magicPhase = v; Invalidate(); } }
+    }
+
+    /// <summary>True while the magic light is moving.</summary>
+    public bool MagicAnimating => _magicTimer?.Enabled == true;
+
+    private void UpdateMagic()
+    {
+        bool run = Glowing && Enabled && Visible && IsHandleCreated && SystemInformation.UIEffectsEnabled;
+        if (run && _magicTimer is null)
+        {
+            _magicTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            _magicTimer.Tick += (_, _) =>
+            {
+                _magicPhase = (_magicPhase + 1) % MagicPhases;
+                if (TopLevelControl is Form { Visible: true, WindowState: not FormWindowState.Minimized }) Invalidate();
+            };
+        }
+        if (_magicTimer is null) return;
+        if (run && !_magicTimer.Enabled) _magicTimer.Start();
+        else if (!run && _magicTimer.Enabled) _magicTimer.Stop();
+    }
+
+    protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); UpdateMagic(); }
+
+    protected override void OnHandleDestroyed(EventArgs e) { _magicTimer?.Stop(); base.OnHandleDestroyed(e); }
+
+    protected override void OnVisibleChanged(EventArgs e) { base.OnVisibleChanged(e); UpdateMagic(); }
+
+    private float MagicNow => Glowing ? _magicPhase / (float)MagicPhases : -1f;
+#else
+    private void UpdateMagic() { }
+
+    private static float MagicNow => -1f;
+#endif
 
     /// <summary>True when the last paint used a Direct3D face (diagnostics, tests).</summary>
     public bool PaintedDirect3D { get; private set; }
@@ -143,8 +196,8 @@ public sealed class AiFgfButton : Button
         Color glow = Glowing ? EffectiveGlow : Color.Empty;
         if (Glowing && glow.A < 255) glow = Color.FromArgb(255, glow);
         bool specular = Effects && _pointer.X >= 0;
-        Bitmap? face = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(Width, Height, scale, body, back, border, _hoverAnim, _pressAnim, glow, Glowing && Focused,
-            specular ? _pointer.X : -1f, specular ? _pointer.Y : -1f));
+        Bitmap? face = AiFgfDirect3D.Draw(new AiFgfFace(Width, Height, scale, body, back, border, _hoverAnim, _pressAnim, glow, Glowing && Focused,
+            specular ? _pointer.X : -1f, specular ? _pointer.Y : -1f, MagicNow));
         if (face is null) return false;
         e.Graphics.DrawImageUnscaled(face, 0, 0);
 
@@ -187,12 +240,19 @@ public sealed class AiFgfButton : Button
     {
         base.OnEnabledChanged(e);
         if (!Enabled) { _animTimer?.Stop(); _hoverAnim = _hover ? 1f : 0f; _pressAnim = _pressed ? 1f : 0f; }
+        UpdateMagic();
         Invalidate();
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _animTimer?.Dispose();
+        if (disposing)
+        {
+            _animTimer?.Dispose();
+#if NET11_0_OR_GREATER
+            _magicTimer?.Dispose();
+#endif
+        }
         base.Dispose(disposing);
     }
 }
@@ -208,6 +268,40 @@ public sealed class AiFgfCheck : CheckBox
         int glyph = LogicalToDeviceUnits(13) + LogicalToDeviceUnits(4);
         return AiFgfWrap.Preferred(this, base.GetPreferredSize(proposedSize), MaxTextEm, glyph + Padding.Horizontal + 4, Padding.Vertical + 2);
     }
+#if NET11_0_OR_GREATER
+
+    private AiFgfButtonStyle _look;
+    private bool _hover;
+
+    /// <summary>
+    /// .NET 11: how the box is drawn - flat (the system's), or Raised / Glow: a sunken Direct3D well, and when checked a
+    /// raised accent square with a tick (a dash when indeterminate). Caption, keyboard and focus stay the check box's;
+    /// disabled or without Direct3D it is the system's. ToolForm and AiFgf.ApplyLook set it with the buttons' style.
+    /// </summary>
+    [System.ComponentModel.DefaultValue(AiFgfButtonStyle.Flat)]
+    public AiFgfButtonStyle Look
+    {
+        get => _look;
+        set { if (_look != value) { _look = value; Invalidate(); } }
+    }
+
+    /// <summary>True when the last paint drew the box with Direct3D (diagnostics, tests).</summary>
+    [System.ComponentModel.Browsable(false), System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool PaintedDirect3D { get; private set; }
+
+    /// <summary>The box (client coordinates): where the system draws its glyph, the caption to its right.</summary>
+    public Rectangle GlyphBounds => AiFgfGlyph3D.Bounds(this);
+
+    protected override void OnMouseEnter(EventArgs e) { _hover = true; base.OnMouseEnter(e); if (_look != AiFgfButtonStyle.Flat) Invalidate(); }
+
+    protected override void OnMouseLeave(EventArgs e) { _hover = false; base.OnMouseLeave(e); if (_look != AiFgfButtonStyle.Flat) Invalidate(); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);   // background, caption, focus cues - and the system's glyph, covered below
+        PaintedDirect3D = _look != AiFgfButtonStyle.Flat && Enabled && AiFgfGlyph3D.Paint(this, e.Graphics, _look, round: false, CheckState, _hover);
+    }
+#endif
 }
 
 /// <summary>Preferred size of an auto-sized control whose caption wraps beyond a maximum width.</summary>

@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup />
+  <ItemGroup>
+    <Compile Update="App\AiFgfDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="App\ToolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfBusyOverlay.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfButton.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfChoices.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfDataGridPanel.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfFieldGlow.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfLog.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfMemo.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfNumber.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Controls\AiFgfThemedControls.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Layout\ParamTable.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="Spec\SpecToolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+</Project>

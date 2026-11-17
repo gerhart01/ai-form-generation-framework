@@ -24,13 +24,12 @@
   <ItemGroup>
     <ProjectReference Include="..\AI_FGF.Core\AI_FGF.Core.csproj" />
     <ProjectReference Include="..\AI_FGF.Avalonia\AI_FGF.Avalonia.csproj" />
+    <!-- the Direct3D 12 face renderer, shared with the WinForms front end -->
+    <ProjectReference Include="..\AI_FGF.Direct3D\AI_FGF.Direct3D.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
-    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
-    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
-    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
   </ItemGroup>
 
 </Project>

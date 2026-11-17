@@ -76,7 +76,7 @@ public sealed class AiFgfD3DFieldGlow : Decorator
 
             if (Sunken)
             {
-                WriteableBitmap? sunk = AiFgfD3D.Draw(new AiFgfD3D.Face(w, h, (float)scale, body, back, Color.Transparent, 0f, 1f));
+                WriteableBitmap? sunk = AiFgfD3D.Draw(new AiFgfFace(w, h, (float)scale, body, back, Color.Transparent, 0f, 1f));
                 if (sunk is not null) context.DrawImage(sunk, new Rect(Bounds.Size));
                 if (_focusAnim > 0.01f)
                 {
@@ -88,7 +88,7 @@ public sealed class AiFgfD3DFieldGlow : Decorator
             }
             else
             {
-                WriteableBitmap? face = AiFgfD3D.Draw(new AiFgfD3D.Face(w, h, (float)scale, body, back, Color.Transparent, _focusAnim, 0f, glow, _hasFocus));
+                WriteableBitmap? face = AiFgfD3D.Draw(new AiFgfFace(w, h, (float)scale, body, back, Color.Transparent, _focusAnim, 0f, glow, _hasFocus));
                 if (face is not null) context.DrawImage(face, new Rect(Bounds.Size));
             }
         }

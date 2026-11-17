@@ -87,8 +87,35 @@ public sealed class AiFgfDataGridPanel : UserControl
     /// <summary>Show a table. Pass null to clear.</summary>
     public void Show(DataTable? table)
     {
+        // follow the table as rows are added or removed later (a run filling it live): the grid follows by binding,
+        // but the "N rows" count stayed at what it was when the table was shown - "0 rows" above six rows
+        if (_table is not null)
+        {
+            _table.RowChanged -= OnTableChanged;
+            _table.RowDeleted -= OnTableChanged;
+            _table.TableCleared -= OnTableCleared;
+        }
         _table = table;
+        if (_table is not null)
+        {
+            _table.RowChanged += OnTableChanged;
+            _table.RowDeleted += OnTableChanged;
+            _table.TableCleared += OnTableCleared;
+        }
         ApplyFilter();
+    }
+
+    private void OnTableChanged(object? sender, DataRowChangeEventArgs e) => TableChanged();
+
+    private void OnTableCleared(object? sender, DataTableClearEventArgs e) => TableChanged();
+
+    private void TableChanged()
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired) { try { BeginInvoke(TableChanged); } catch (InvalidOperationException) { } return; }
+        if (_table is null) return;
+        if (_filter.Text.Trim().Length == 0) _info.Text = AiFgfText.Format(AiFgfText.Rows, _table.Rows.Count);
+        else ApplyFilter();   // a filtered view is a copy: rebuild it with the new rows
     }
 
     /// <summary>Load a CSV file (comma-separated, simple quoting) into the grid.</summary>

@@ -23,7 +23,7 @@ public sealed class PingToolForm : ToolForm
 
     public PingToolForm()
     {
-        Text = "AI_FGF Demo — Ping";
+        Text = "AI Forms Generation Framework demo — Ping";
         Log.Line("Enter a host and press Ping. Output streams here; reply times land in the Results tab.");
     }
 

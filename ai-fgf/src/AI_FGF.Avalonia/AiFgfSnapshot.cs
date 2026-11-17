@@ -53,7 +53,7 @@ public static class AiFgfSnapshot
                     case TextBlock t when t.Classes.Contains(StatusClass): Add(K.Status, t.Text ?? "", t); break;
                     case SelectableTextBlock log: Add(K.Log, "", log.FindAncestorOfType<ScrollViewer>() ?? (Visual)log, log); break;
                     case TabItem tab: Add(K.Tab, Plain(AiFgf.Caption(tab.Header)), tab); break;
-                    case CheckBox or RadioButton: Add(K.Check, Plain(AiFgf.Caption(((ContentControl)v).Content)), v); break;
+                    case CheckBox or RadioButton or ToggleSwitch: Add(K.Check, Plain(AiFgf.Caption(((ContentControl)v).Content)), v); break;
                     case Button b: Add(K.Button, Plain(AiFgf.Caption(b.Content)), b); break;
                     case NumericUpDown n: Add(K.Number, n.Text ?? "", n); break;
                     case ComboBox c: Add(K.Combo, (c.IsEditable ? c.Text : c.SelectedItem?.ToString()) ?? "", c); break;

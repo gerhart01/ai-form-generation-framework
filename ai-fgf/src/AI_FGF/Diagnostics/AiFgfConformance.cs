@@ -284,7 +284,9 @@ public static class AiFgfConformance
                     int gap = rr.Left - rl.Right;
                     if (gap >= 0 && gap < Px(label ? 2 : 4))
                         issues.Add(new(Name(l), $"is {gap}px from {Name(r)} — too close (at least {Px(label ? 2 : 4)}px)"));
-                    if (gap >= 0 && (l is Label || gap < Px(40)) && OneLine(l, rl) && OneLine(r, rr) && Nearest(items, l, rl, rr))
+                    // neighbours share a section of the window: a label at the end of one group's row and a label in the next
+                    // group (or behind a splitter) are on the same line by chance, not a label and the control it names
+                    if (gap >= 0 && (l is Label || gap < Px(40)) && SameSection(l, r) && OneLine(l, rl) && OneLine(r, rr) && Nearest(items, l, rl, rr))
                     {
                         int dc = Math.Abs(Centre(l, rl) - Centre(r, rr));
                         // a caption wrapped onto more lines than its neighbour may instead line up at the top
@@ -309,7 +311,12 @@ public static class AiFgfConformance
         {
             var sorted = row.OrderBy(x => x.Bounds.Left).ToList();
             if (sorted.Count < 3) continue;
-            var gaps = sorted.Zip(sorted.Skip(1), (x, y) => y.Bounds.Left - x.Bounds.Right).Where(g => g >= 0).ToList();
+            // only gaps with nothing else in them: two buttons with a text box or a slider between them (a board group's
+            // mixed row) are not a button row's spacing
+            bool Empty(Rectangle a, Rectangle b) => !items.Any(o => o.Control.Parent == sorted[0].Control.Parent && o.Bounds.Left >= a.Right && o.Bounds.Right <= b.Left
+                                                                 && o.Bounds.Top < Math.Max(a.Bottom, b.Bottom) && o.Bounds.Bottom > Math.Min(a.Top, b.Top));
+            var gaps = sorted.Zip(sorted.Skip(1), (x, y) => (x, y)).Where(p => Empty(p.x.Bounds, p.y.Bounds))
+                             .Select(p => p.y.Bounds.Left - p.x.Bounds.Right).Where(g => g >= 0).ToList();
             if (gaps.Count < 2) continue;
             int min = gaps.Min();
             var near = gaps.Where(g => g <= Math.Max(min * 3, Px(12))).ToList();   // a wide gap separates groups on purpose
@@ -420,6 +427,9 @@ public static class AiFgfConformance
             for (int i = 0; i < tabs.TabCount; i++)
             {
                 Rectangle tab = tabs.RectangleToScreen(tabs.GetTabRect(i));
+                // a header partly scrolled away (the tabs below the fold of a scrolling panel) is not drawn where it
+                // is: like the other checks, judge only what is in view
+                if (VisibleOnScreen(tabs, tab) != tab) continue;
                 Point at = form.PointToClient(tab.Location);
                 var rect = Rectangle.Intersect(new Rectangle(at.X + offset.X, at.Y + offset.Y, tab.Width, tab.Height), new Rectangle(Point.Empty, bmp.Size));
                 if (rect.Width <= 2 || rect.Height <= 2) continue;
@@ -456,6 +466,26 @@ public static class AiFgfConformance
             if (best < need)
                 yield return new(Name(c), $"rendered text is not visible (strongest contrast {best:0.0}:1{(c.Enabled ? "" : ", disabled")})");
         }
+    }
+
+    /// <summary>The part of <paramref name="screen"/> (screen coordinates) not clipped by <paramref name="c"/> or its parents.</summary>
+    private static Rectangle VisibleOnScreen(Control c, Rectangle screen)
+    {
+        for (Control? p = c; p is not null; p = p.Parent)
+            screen = Rectangle.Intersect(screen, p.RectangleToScreen(p.ClientRectangle));
+        return screen;
+    }
+
+    /// <summary>True when both sit in the same group box, tab page, splitter half (or neither does).</summary>
+    private static bool SameSection(Control a, Control b)
+    {
+        static Control? Section(Control c)
+        {
+            for (Control? p = c.Parent; p is not null; p = p.Parent)
+                if (p is GroupBox or TabPage or SplitterPanel) return p;
+            return null;
+        }
+        return Section(a) == Section(b);
     }
 
     /// <summary>Contrast of the strongest pixel against the most common colour (the background) in <paramref name="r"/>.</summary>

@@ -224,6 +224,9 @@ public sealed class FormScaffold
         /// <summary>A labelled row with any control that is not a field (a slider, swatches…).</summary>
         public RowBuilder Custom(string label, Control control, Control? trailing = null)
         {
+            // a text in the input column (a note) wraps at the room it has, as on WinForms: one line, it was cut off at the
+            // window's edge
+            if (control is TextBlock { TextWrapping: TextWrapping.NoWrap } note) note.TextWrapping = TextWrapping.Wrap;
             _table.AddRow(MakeLabel(label, control), control, trailing);
             _lastKeys = Array.Empty<string>();
             return this;
@@ -244,6 +247,9 @@ public sealed class FormScaffold
         public RowBuilder Text(string label, out TextBox box, string? placeholder = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text(placeholder);
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.Text);   // .NET 11: drag and drop - a dropped path or text
+#endif
             Place(label, box, null, required, key);
             return this;
         }
@@ -271,6 +277,9 @@ public sealed class FormScaffold
                                int maxLines = 12, bool readOnly = false)
         {
             memo = new AiFgfMemo { VisibleLines = lines, IsReadOnly = readOnly };
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(memo, DropTarget.Memo);   // .NET 11: drag and drop - each dropped path on a line of its own
+#endif
             memo.MaxLines = Math.Max(lines, maxLines);
             if (value is not null) memo.Text = value;
             Place(label, memo, null, required, key);
@@ -284,6 +293,9 @@ public sealed class FormScaffold
         public RowBuilder FileText(string label, out TextBox box, string? filter = null, string? title = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text();
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.File, filter);   // .NET 11: drag and drop - a file, matching the filter
+#endif
             Place(label, box, AiFgf.BrowseFileInto(box, filter ?? AiFgfText.AllFilesFilter, title, _direct3D), required, key);
             return this;
         }
@@ -291,6 +303,9 @@ public sealed class FormScaffold
         public RowBuilder FolderText(string label, out TextBox box, string? description = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text();
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.Folder);   // .NET 11: drag and drop - a folder, or the folder of a file
+#endif
             Place(label, box, AiFgf.BrowseFolderInto(box, description, _direct3D), required, key);
             return this;
         }
@@ -367,6 +382,14 @@ public sealed class FormScaffold
 
         /// <summary>A wrapping row of checkboxes with explicit keys.</summary>
         public RowBuilder Checks(params (string Key, CheckBox Box)[] boxes)
+            => Toggles(boxes.Select(b => (b.Key, (ToggleButton)b.Box)).ToArray());
+
+#if NET11_0_OR_GREATER
+        /// <summary>.NET 11: a wrapping row of check boxes and switches (<see cref="AiFgf.Toggle"/>) with explicit keys.</summary>
+        public RowBuilder Checks(params (string Key, ToggleButton Box)[] boxes) => Toggles(boxes);
+#endif
+
+        internal RowBuilder Toggles((string Key, ToggleButton Box)[] boxes)
         {
             var flow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = WinFormsMetrics.ChecksRowMargin };
             foreach (var (_, box) in boxes) flow.Children.Add(box);

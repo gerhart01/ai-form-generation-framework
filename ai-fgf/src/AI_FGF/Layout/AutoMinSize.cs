@@ -137,6 +137,16 @@ public static partial class AutoMinSize
         int needClientW = form.LogicalToDeviceUnits(c.MinBodyWidth) + padH;
         if (c.Bar is not null) needClientW = Math.Max(needClientW, ButtonBarMinWidth(c.Bar) + padH);
         foreach (Control ctl in docked) needClientW = Math.Max(needClientW, MinWidthOf(ctl) + padH);
+#if NET11_0_OR_GREATER
+        // a board (FormScaffold.Board) in the body: as wide as its groups need, plus its side panel behind the splitter
+        foreach (BoardTable board in Descendants(form).OfType<BoardTable>())
+        {
+            int need = board.MinimumWidth();
+            if (board.Parent is SplitterPanel { Parent: SplitContainer split } && split.Panel1.Controls.Contains(board))
+                need += split.SplitterWidth + form.LogicalToDeviceUnits(FormScaffold.SideMinimum);
+            needClientW = Math.Max(needClientW, need + padH);
+        }
+#endif
 
         // Height: what the docked stack needs *at that minimum width* (bars wrap into more rows,
         // parameter rows stack), plus a minimum body — so the stack can never collapse into itself.

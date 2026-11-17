@@ -9,7 +9,7 @@
     <LangVersion>latest</LangVersion>
 
     <RootNamespace>AI_FGF</RootNamespace>
-    <AssemblyName>AI_FGF</AssemblyName>
+    <AssemblyName>ai_fgf</AssemblyName>
     <Version>0.1</Version>
     <!-- a package with a pinned version: an app depends on a release, not on this repository (tools/Pack.ps1) -->
     <IsPackable>true</IsPackable>
@@ -22,21 +22,14 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- AiFgfDirect3D copies GPU readback rows into bitmaps. -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Library ships styling helpers with many public members; don't demand XML docs on every one. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AI_FGF.Core\AI_FGF.Core.csproj" />
-  </ItemGroup>
-
-  <!-- Direct3D 12 button faces (AiFgfButton.Use3D): managed bindings, MIT. Missing GPU/driver → flat buttons. -->
-  <ItemGroup>
-    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
-    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
-    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <!-- the Direct3D 12 face renderer, shared with the Avalonia add-on -->
+    <ProjectReference Include="..\AI_FGF.Direct3D\AI_FGF.Direct3D.csproj" />
   </ItemGroup>
 
 </Project>

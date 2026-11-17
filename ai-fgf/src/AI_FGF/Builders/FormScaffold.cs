@@ -13,7 +13,7 @@ namespace AI_FGF;
 /// Dock order matters in WinForms (Fill must be added before Top/Bottom so it ends up
 /// lowest in z-order); <see cref="FormScaffold"/> adds things in the right order for you.
 /// </summary>
-public sealed class FormScaffold
+public sealed partial class FormScaffold
 {
     private readonly Form _form;
     private Control? _body;
@@ -182,7 +182,7 @@ public sealed class FormScaffold
         /// <summary>
         /// Enable the row just added only while <paramref name="condition"/> holds, e.g.
         /// <c>rows.FileText("Report:", out _).EnableWhen(f => f.GetValue("WriteReport") == "true")</c>.
-        /// A disabled field is not validated and not part of <see cref="FieldSet.GetActiveValues"/>.
+        /// A disabled field is not validated and not part of <see cref="FieldSetBase{TSelf, TControl}.GetActiveValues"/>.
         /// </summary>
         public RowBuilder EnableWhen(Func<FieldSet, bool> condition)
         {
@@ -216,6 +216,9 @@ public sealed class FormScaffold
         public RowBuilder Text(string label, out TextBox box, string? placeholder = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text(placeholder);
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.Text);   // .NET 11: drag and drop - a dropped path or text
+#endif
             Place(label, box, null, required, key);
             return this;
         }
@@ -249,6 +252,9 @@ public sealed class FormScaffold
                                int maxLines = 12, bool readOnly = false)
         {
             memo = new AiFgfMemo { VisibleLines = lines, MaxLines = Math.Max(lines, maxLines), ReadOnly = readOnly };
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(memo, DropTarget.Memo);   // .NET 11: drag and drop - each dropped path on a line of its own
+#endif
             if (value is not null) memo.Text = value;
             Place(label, memo, null, required, key);
             return this;
@@ -263,6 +269,9 @@ public sealed class FormScaffold
         public RowBuilder FileText(string label, out TextBox box, string filter = "All files|*.*", string? title = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text();
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.File, filter);   // .NET 11: drag and drop - a file from Explorer, matching the filter
+#endif
             Place(label, box, AiFgf.BrowseFileInto(box, filter, title), required, key);
             return this;
         }
@@ -271,6 +280,9 @@ public sealed class FormScaffold
         public RowBuilder FolderText(string label, out TextBox box, string? description = null, bool required = false, string? key = null)
         {
             box = AiFgf.Text();
+#if NET11_0_OR_GREATER
+            AiFgfDropView.Accept(box, DropTarget.Folder);   // .NET 11: drag and drop - a folder, or the folder of a file
+#endif
             Place(label, box, AiFgf.BrowseFolderInto(box, description), required, key);
             return this;
         }

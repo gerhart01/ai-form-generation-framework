@@ -88,9 +88,13 @@ internal static class Program
         {
             var asm = System.Reflection.Assembly.LoadFrom(Path.GetFullPath(args[0]));
             Type type = asm.GetType(args[1], throwOnError: true)!;
+#if NET11_0_OR_GREATER
+            old = AiFgfMigration.CreateForm(type);   // a constructor with arguments too: built through InitializeComponent()
+#else
             old = (Form)Activator.CreateInstance(type, nonPublic: true)!;
+#endif
         }
-        catch (Exception ex) when (ex is IOException or BadImageFormatException or TypeLoadException or MissingMethodException or InvalidCastException or System.Reflection.TargetInvocationException)
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or TypeLoadException or MissingMethodException or InvalidCastException or ArgumentException or System.Reflection.TargetInvocationException)
         {
             Console.WriteLine($"FAIL  cannot create {args[1]} from {args[0]}: {ex.GetBaseException().Message}");
             return 2;
@@ -101,7 +105,7 @@ internal static class Program
             Show(old);
             ToolSpec spec = AiFgfMigration.DraftSpec(old);
             File.WriteAllText(output, spec.ToCompactJson() + Environment.NewLine);
-            AiFgfLayoutSnapshot before = AiFgfSnapshot.Of(old);
+            AiFgfLayoutSnapshot before = AiFgfSnapshot.Of(old, everyTabPage: true);   // the inputs of every tab page must carry over
             string snapshotPath = Path.ChangeExtension(output, ".old-snapshot.json");
             before.Save(snapshotPath);
             Console.WriteLine($"Form      {args[1]} — {spec.Fields.Count} field(s)");
@@ -114,7 +118,11 @@ internal static class Program
             spec.SettingsKey = "";   // the check must not read or write the user's saved settings
             using var made = new SpecToolForm(spec);
             Show(made);
-            var lost = AiFgfSnapshot.Of(made).Compare(before, AiFgfSnapshotTolerance.ContentOnly);
+            var differences = AiFgfSnapshot.Of(made).Compare(before, AiFgfSnapshotTolerance.ContentOnly);
+            // group boxes and the old window buttons (OK, Close…) are replaced by the tool form's own: expected, not lost
+            var expected = differences.Where(AiFgfMigration.IsReplacedByToolForm).ToList();
+            var lost = differences.Except(expected).ToList();
+            foreach (string l in expected) Console.WriteLine($"  replaced by the tool form: {l}");
             foreach (string l in lost) Console.WriteLine($"  not in the new form: {l}");
             Console.WriteLine("Next      set \"executable\" and each field's \"arg\", then: AI_FGF.Check " + output);
             Console.WriteLine(lost.Count == 0 ? "RESULT: PASS — every caption and input carried over" : $"RESULT: FAIL — {lost.Count} element(s) of the old form are not in the new one (add them or confirm they are not needed)");
@@ -156,7 +164,13 @@ internal static class Program
     private static string Preview(ToolSpec spec)
     {
         var values = spec.Fields.ToDictionary(f => f.Key, f => f.Default ?? (f.Kind == FieldKind.Number ? (f.Min ?? 0).ToString(CultureInfo.InvariantCulture) : ""), StringComparer.OrdinalIgnoreCase);
-        return spec.Executable + " " + string.Join(' ', spec.BuildArguments(values).Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+        // the command as it will run - interpreter and script included: a spec with "interpreter" showed only its
+        // arguments (" --mode fast"), with no word of what is started
+        try { return spec.BuildRunner(values).CommandLine; }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
+        {
+            return spec.Executable + " " + string.Join(' ', spec.BuildArguments(values).Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+        }
     }
 
     private static int[]? ParseDpis(string[] args)

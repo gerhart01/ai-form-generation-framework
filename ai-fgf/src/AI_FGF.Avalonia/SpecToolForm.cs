@@ -43,11 +43,11 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
 
     protected override void BuildParameters(FormScaffold.RowBuilder rows)
     {
-        var flags = new List<(string Key, CheckBox Box)>();
+        var flags = new List<(string Key, global::Avalonia.Controls.Primitives.ToggleButton Box)>();
         void FlushFlags()
         {
             if (flags.Count == 0) return;
-            rows.Checks(flags.ToArray());
+            rows.Toggles(flags.ToArray());
             flags.Clear();
         }
 
@@ -55,7 +55,12 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
         {
             if (f.Kind == FieldKind.Flag)
             {
-                flags.Add((f.Key, AiFgf.Check(f.Label, bool.TryParse(f.Default, out bool on) && on)));
+                bool on = bool.TryParse(f.Default, out bool d) && d;
+#if NET11_0_OR_GREATER
+                flags.Add((f.Key, f.Switch ? AiFgf.Toggle(f.Label, on) : (global::Avalonia.Controls.Primitives.ToggleButton)AiFgf.Check(f.Label, on)));   // "switch": true - an on/off switch
+#else
+                flags.Add((f.Key, AiFgf.Check(f.Label, on)));
+#endif
                 continue;
             }
             FlushFlags();
@@ -63,9 +68,16 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
             switch (f.Kind)
             {
                 case FieldKind.Text:
-                    rows.Text(label, out TextBox text, f.Placeholder, f.Required, f.Key);
+                {
+                    TextBox text;
+#if NET11_0_OR_GREATER
+                    if (f.Password) rows.Password(label, out text, f.Placeholder, f.Required, f.Key);   // "password": true - hidden input
+                    else
+#endif
+                    rows.Text(label, out text, f.Placeholder, f.Required, f.Key);
                     if (f.Default is not null) text.Text = f.Default;
                     break;
+                }
                 case FieldKind.Memo:
                     rows.Memo(label, out AiFgfMemo memo, f.Lines ?? 4, f.Default, f.Required, f.Key, f.MaxLines ?? Math.Max(12, f.Lines ?? 4), f.ReadOnly);
                     if (f.Placeholder is not null) memo.PlaceholderText = f.Placeholder;
@@ -81,6 +93,13 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
                     if (f.Default is not null) folder.Text = f.Default;
                     break;
                 case FieldKind.Choice:
+#if NET11_0_OR_GREATER
+                    if (f.Radio && f.Choices is { Count: > 0 } radios)   // "radio": true - every choice at once
+                    {
+                        rows.Radios(label, radios, f.Default is { } sel && radios.Contains(sel) ? sel : radios[0], f.Key);
+                        break;
+                    }
+#endif
                     rows.Combo(label, out ComboBox combo, f.Editable, f.Required, f.Key);
                     foreach (string c in f.Choices ?? new List<string>()) combo.Items.Add(c);
                     if (f.Default is not null)
@@ -91,6 +110,12 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
                     if (!f.Editable && combo.SelectedIndex < 0 && combo.Items.Count > 0) combo.SelectedIndex = 0;
                     combo.PlaceholderText = f.Placeholder;
                     break;
+#if NET11_0_OR_GREATER
+                case FieldKind.Note:
+                    // a line of text across the form (a hint, a status line carried over from an old form)
+                    rows.Custom("", AiFgf.Label(f.Label, subtle: true));   // wraps: a text in the input column
+                    break;
+#endif
                 case FieldKind.Number:
                     decimal min = f.Min ?? 0, max = f.Max ?? 100;
                     decimal value = decimal.TryParse(f.Default, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal d) ? d : min;
@@ -115,7 +140,22 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
         }
     }
 
+
     protected override ProcessRunner? BuildRun() => _spec.BuildRunner(Fields.GetValues());
+#if NET11_0_OR_GREATER
+
+    // "actions": a button each beside Run - its own command from the same fields, run by the same controller
+    protected override void ConfigureButtons(FormScaffold.BarBuilder bar)
+    {
+        base.ConfigureButtons(bar);
+        foreach (ActionSpec action in _spec.Actions ?? new())
+        {
+            ActionSpec a = action;
+            bar.Button(a.Label, (_, _) => StartRun(() => _spec.BuildRunner(Fields.GetValues(), a)), out var button);
+            AddActionButton(button);
+        }
+    }
+#endif
 
     protected override void OnRunFinished(ProcessResult result)
     {

@@ -12,7 +12,7 @@ namespace AI_FGF;
 
 /// <summary>The kind of input a <see cref="FieldSpec"/> renders as.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<FieldKind>))]
-public enum FieldKind { Text, File, Folder, Choice, Number, Flag, Memo }
+public enum FieldKind { Text, File, Folder, Choice, Number, Flag, Memo, Note }
 
 /// <summary>One input of a <see cref="ToolSpec"/>: how it looks, how it validates, how it becomes arguments.</summary>
 public sealed class FieldSpec
@@ -27,6 +27,12 @@ public sealed class FieldSpec
     public int? MaxLines { get; set; }
     /// <summary>A <c>memo</c> that shows text instead of taking input.</summary>
     public bool ReadOnly { get; set; }
+    /// <summary>A <c>flag</c> shown as an on/off switch instead of a check box (.NET 11, WinForms and Avalonia; a check box on .NET 10).</summary>
+    public bool Switch { get; set; }
+    /// <summary>A <c>text</c> field whose input is hidden (a password, a token); never saved with the form's settings (.NET 11; plain text on .NET 10).</summary>
+    public bool Password { get; set; }
+    /// <summary>A <c>choice</c> shown as radio buttons, all choices at once, instead of a drop-down (.NET 11; a drop-down on .NET 10). Not with <c>editable</c>.</summary>
+    public bool Radio { get; set; }
     /// <summary>The input: text, file, folder, choice, number, flag or memo.</summary>
     public FieldKind Kind { get; set; } = FieldKind.Text;
     /// <summary>The value must not be empty (shown as "Label *").</summary>
@@ -64,7 +70,8 @@ public sealed class FieldSpec
 
     /// <summary>
     /// How the value becomes command-line arguments: <c>"-o"</c> emits <c>-o value</c> (skipped
-    /// when empty); <c>"--level={value}"</c> emits one token; for a flag, the argument is emitted
+    /// when empty); <c>"--level={value}"</c> emits one token (<c>{value}</c> or the field's own <c>{Key}</c>; another
+    /// field's <c>{Key}</c> is that field's value); for a flag, the argument is emitted
     /// when checked. Leave empty and set <see cref="Positional"/> for a bare value.
     /// </summary>
     public string? Arg { get; set; }
@@ -213,6 +220,13 @@ public sealed class ToolSpec
 
     /// <summary>Key under which settings are saved (default: derived from the title; <c>""</c> = do not persist).</summary>
     public string? SettingsKey { get; set; }
+
+    /// <summary>
+    /// More buttons beside Run (.NET 11), each running its own command from the same fields: "Start" / "Stop" of a
+    /// service, "Check" before "Deploy". An action replaces <c>fixedArgs</c>, and may run another executable and pass
+    /// only some fields. The Run button stays the spec's own command.
+    /// </summary>
+    public List<ActionSpec>? Actions { get; set; }
     /// <summary>The inputs, in the order shown; each becomes arguments as its arg / positional say.</summary>
     public List<FieldSpec> Fields { get; set; } = new();
 
@@ -350,6 +364,11 @@ public sealed class ToolSpec
                         Err(where, $"filter '{filter}' must be pairs: \"Description|*.ext|…\"");
                     break;
             }
+            if (f.Password && f.Kind != FieldKind.Text) Err(where, $"password applies to a text field, not a {f.Kind.ToString().ToLowerInvariant()}");
+            if (f.Password && f.Default is { Length: > 0 }) Warn(where, "a password with a default: the secret is written in the spec in plain text");
+            if (f.Radio && f.Kind != FieldKind.Choice) Err(where, $"radio applies to a choice field, not a {f.Kind.ToString().ToLowerInvariant()}");
+            if (f.Radio && (f.Editable || f.ChoicesFromMarker is not null)) Err(where, "radio buttons offer fixed choices: not with editable or choicesFromMarker");
+            if (f.Switch && f.Kind != FieldKind.Flag) Err(where, $"switch applies to a flag, not a {f.Kind.ToString().ToLowerInvariant()}");
             if (f.Kind is FieldKind.Number or FieldKind.Flag && f.Pattern is not null) Err(where, $"a pattern does not apply to a {f.Kind.ToString().ToLowerInvariant()}");
             if (f.Pattern is { } p)
             {
@@ -367,8 +386,26 @@ public sealed class ToolSpec
                 Warn(where, $"arg '{arg}' contains a space — it is passed as ONE argument; use \"--name={{value}}\" or split it");
             if (f.Kind == FieldKind.Flag && string.IsNullOrEmpty(f.Arg))
                 Warn(where, "a flag without \"arg\" changes nothing on the command line");
+            if (f.Kind == FieldKind.Note)
+            {
+                if (!string.IsNullOrEmpty(f.Arg) || f.Positional || f.Required || f.Default is not null || f.Pattern is not null)
+                    Err(where, "a note is a line of text: no arg, positional, required, default or pattern");
+                continue;
+            }
             if (f.Kind != FieldKind.Flag && string.IsNullOrEmpty(f.Arg) && !f.Positional && !IsReferenced(f.Key))
                 Warn(where, "not passed to the tool (no \"arg\", not positional, not used in workingDirectory/resultsCsv)");
+        }
+
+        var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { RunButton };
+        for (int i = 0; i < (Actions?.Count ?? 0); i++)
+        {
+            ActionSpec a = Actions![i];
+            string where = $"actions[{i}]" + (string.IsNullOrWhiteSpace(a.Label) ? "" : $" '{a.Label}'");
+            if (string.IsNullOrWhiteSpace(a.Label)) Err(where, "label is empty");
+            else if (!labels.Add(a.Label)) Err(where, "the same label as the Run button or another action");
+            foreach (string k in a.Fields ?? new()) if (!keys.Contains(k)) Err(where, $"passes unknown field '{k}'");
+            if (string.IsNullOrWhiteSpace(a.Executable) && a.FixedArgs is null && a.Fields is null)
+                Warn(where, "no executable, fixedArgs or fields of its own: it runs exactly what the Run button runs");
         }
 
         for (int i = 0; i < Fields.Count; i++)
@@ -396,6 +433,13 @@ public sealed class ToolSpec
                 else if (name == "warningCodes") warningCodes.Add(c);
                 else if (warningCodes.Contains(c)) Err(name, $"exit code {c} is both a warning and a failure");
             }
+
+        // a {placeholder} in an arg must be {value} or name a field: anything else reached the tool as typed
+        foreach (FieldSpec f in Fields)
+            if (f.Arg is { } a)
+                foreach (Match m in Placeholder.Matches(a))
+                    if (m.Groups[1].Value != "value" && !keys.Contains(m.Groups[1].Value))
+                        Err($"field '{f.Key}'", $"arg '{a}' refers to unknown field {{{m.Groups[1].Value}}} (use {{value}} for this field's value)");
 
         foreach (var (name, text) in new[] { ("workingDirectory", WorkingDirectory), ("resultsCsv", ResultsCsv) })
             if (text is not null)
@@ -437,13 +481,18 @@ public sealed class ToolSpec
         => condition is null || !FieldCondition.TryParse(condition, out FieldCondition? c, out _) || c!.Evaluate(values);
 
     /// <summary>The arguments for these field values: fixed args, then options in field order, then positionals.</summary>
-    public IReadOnlyList<string> BuildArguments(IReadOnlyDictionary<string, string> values)
+    public IReadOnlyList<string> BuildArguments(IReadOnlyDictionary<string, string> values) => BuildArguments(values, null);
+
+    /// <summary>The arguments of an <paramref name="action"/> (its fixed arguments, the fields it passes); null = the Run button's.</summary>
+    public IReadOnlyList<string> BuildArguments(IReadOnlyDictionary<string, string> values, ActionSpec? action)
     {
-        var args = new List<string>(FixedArgs);
+        var args = new List<string>(action?.FixedArgs ?? FixedArgs);
         var positionals = new List<string>();
         IReadOnlySet<string> active = ActiveFields(values);
         foreach (FieldSpec f in Fields)
         {
+            if (f.Kind == FieldKind.Note) continue;   // a line of text: no value
+            if (action?.Fields is { } only && !only.Contains(f.Key, StringComparer.OrdinalIgnoreCase)) continue;
             if (!active.Contains(f.Key)) continue;   // disabled or hidden: not passed
             values.TryGetValue(f.Key, out string? raw);
             string value = (raw ?? "").Trim();
@@ -455,7 +504,18 @@ public sealed class ToolSpec
             if (value.Length == 0) continue;
             if (f.Positional) { positionals.Add(value); continue; }
             if (string.IsNullOrEmpty(f.Arg)) continue;
-            if (f.Arg.Contains("{value}", StringComparison.Ordinal)) args.Add(f.Arg.Replace("{value}", value, StringComparison.Ordinal));
+            // one token with the value in it: {value}, or the field's own {Key} - "--{Mode}" used to be passed as the
+            // literal option "--{Mode}" followed by the value; another field's {Key} is that field's value
+            if (Placeholder.IsMatch(f.Arg))
+                args.Add(Placeholder.Replace(f.Arg, m =>
+                {
+                    string name = m.Groups[1].Value;
+                    if (name == "value" || string.Equals(name, f.Key, StringComparison.OrdinalIgnoreCase)) return value;
+                    // another field's value - empty while a condition disables or hides that field: an inactive field
+                    // is never passed, not even through another field's arg (found by the random spec tests)
+                    if (!active.Contains(name)) return Fields.Any(x => string.Equals(x.Key, name, StringComparison.OrdinalIgnoreCase)) ? "" : m.Value;
+                    return values.TryGetValue(name, out string? other) ? (other ?? "").Trim() : m.Value;
+                }));
             else { args.Add(f.Arg); args.Add(value); }
         }
         args.AddRange(positionals);
@@ -474,12 +534,16 @@ public sealed class ToolSpec
     }
 
     /// <summary>A configured <see cref="ProcessRunner"/> for these field values.</summary>
-    public ProcessRunner BuildRunner(IReadOnlyDictionary<string, string> values)
+    public ProcessRunner BuildRunner(IReadOnlyDictionary<string, string> values) => BuildRunner(values, null);
+
+    /// <summary>The process of an <paramref name="action"/> (null = the Run button's): its executable, else the spec's.</summary>
+    public ProcessRunner BuildRunner(IReadOnlyDictionary<string, string> values, ActionSpec? action)
     {
-        IReadOnlyList<string> args = BuildArguments(values);
+        IReadOnlyList<string> args = BuildArguments(values, action);
         string? exe = string.IsNullOrWhiteSpace(Executable) ? null : Executable;
         ProcessRunner runner;
-        switch (Interpreter?.ToLowerInvariant())
+        // an action with an executable of its own runs that, not the spec's interpreter
+        switch (action?.Executable is { Length: > 0 } ? null : Interpreter?.ToLowerInvariant())
         {
             case "pwsh" or "powershell":
                 runner = ProcessRunner.PowerShell(ResolvedScript!, args, exe ?? (Interpreter!.Equals("powershell", StringComparison.OrdinalIgnoreCase) ? "powershell" : null));
@@ -488,7 +552,7 @@ public sealed class ToolSpec
                 runner = ProcessRunner.Python(ResolvedScript!, args, exe);
                 break;
             default:
-                runner = new ProcessRunner(Executable);
+                runner = new ProcessRunner(action?.Executable is { Length: > 0 } own ? own : Executable);
                 foreach (string a in args) runner.Arg(a);
                 if (Encoding.Equals("utf8", StringComparison.OrdinalIgnoreCase)) runner.Utf8();
                 break;
@@ -499,6 +563,22 @@ public sealed class ToolSpec
         runner.ExitCodes(ApplyExitCodes);
         return runner;
     }
+}
+
+/// <summary>
+/// One more button of a <see cref="ToolSpec"/> (.NET 11): its own command from the same fields - "Stop" beside "Start",
+/// "Check" before "Deploy".
+/// </summary>
+public sealed class ActionSpec
+{
+    /// <summary>The button's caption (an ampersand marks the Alt mnemonic).</summary>
+    public string Label { get; set; } = "";
+    /// <summary>Another program to run; empty runs the spec's executable.</summary>
+    public string? Executable { get; set; }
+    /// <summary>Arguments in place of the spec's <c>fixedArgs</c> (e.g. <c>["stop"]</c>); omitted keeps the spec's.</summary>
+    public List<string>? FixedArgs { get; set; }
+    /// <summary>The keys of the fields it passes; omitted passes every field (as the Run button does).</summary>
+    public List<string>? Fields { get; set; }
 }
 
 /// <summary>Reads a JSON string, number or boolean into a string (so <c>"default": 4</c> and <c>true</c> work).</summary>

@@ -14,7 +14,8 @@ public sealed partial class ProcessRunner
     /// no profile, non-interactive, execution policy bypassed. Output is full Unicode — the script
     /// is started through <c>-EncodedCommand</c> that first switches the console output to UTF-8
     /// (redirected pwsh output is otherwise the OEM code page and characters outside it become '?').
-    /// Arguments are passed as PowerShell string literals, so spaces and quotes are safe, and the
+    /// Arguments are passed as PowerShell string literals, so spaces and quotes are safe — except parameter names
+    /// (<c>-Name</c>, <c>-Name:</c>), passed bare so they bind as named parameters and switches — and the
     /// script's exit code is the process's exit code.
     /// </summary>
     /// <remarks>Script arguments go in <paramref name="args"/>; <see cref="Arg"/> would add pwsh options.</remarks>
@@ -27,7 +28,9 @@ public sealed partial class ProcessRunner
         command.Append("$OutputEncoding = [Console]::OutputEncoding; ");
         command.Append("$global:LASTEXITCODE = 0; ");
         command.Append("& ").Append(Literal(Path.GetFullPath(scriptPath)));
-        foreach (string a in args ?? Enumerable.Empty<string>()) command.Append(' ').Append(Literal(a));
+        // A parameter name (-Framework, -Build, -Level:) goes in bare, so PowerShell binds it as a named parameter or a
+        // switch; quoted, '-Framework' was just a string, and no named parameter or switch could reach the script.
+        foreach (string a in args ?? Enumerable.Empty<string>()) command.Append(' ').Append(IsParameterName(a) ? a : Literal(a));
         // $? must be read first (any statement resets it); a script that ran 'exit N' leaves
         // $? false *and* $LASTEXITCODE = N — keep N; only an error without a code becomes 1.
         command.Append("; $ok = $?; $code = $LASTEXITCODE; if (-not $ok -and -not $code) { exit 1 }; exit $code");
@@ -57,6 +60,15 @@ public sealed partial class ProcessRunner
     }
 
     /// <summary>A PowerShell single-quoted literal: only ' needs escaping (as '').</summary>
+    /// <summary><c>-Name</c> or <c>-Name:</c> — what PowerShell parses as a parameter name; a value such as -5 or "-a b" is not one.</summary>
+    internal static bool IsParameterName(string arg)
+    {
+        if (arg.Length < 2 || arg[0] != '-' || !(char.IsLetter(arg[1]) || arg[1] == '_')) return false;
+        int end = arg.EndsWith(':') ? arg.Length - 1 : arg.Length;
+        for (int i = 2; i < end; i++) if (!(char.IsLetterOrDigit(arg[i]) || arg[i] == '_')) return false;
+        return true;
+    }
+
     private static string Literal(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     /// <summary>The full path of <paramref name="name"/> found on PATH (with PATHEXT), or null.</summary>

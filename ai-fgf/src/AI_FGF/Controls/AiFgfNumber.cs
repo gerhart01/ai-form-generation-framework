@@ -74,7 +74,7 @@ public sealed class AiFgfNumber : NumericUpDown
             // the theme's state fills, as on the flat halves: the shader only lightens a hovered face, and a white field's
             // face cannot get lighter - hovering showed nothing in the light theme
             Color body = _pressed == i ? t.PressFill : _hover == i ? t.HoverFill : t.Surface;
-            Bitmap? face = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(h.Width, h.Height, scale, body, t.Surface, Color.Transparent,
+            Bitmap? face = AiFgfDirect3D.Draw(new AiFgfFace(h.Width, h.Height, scale, body, t.Surface, Color.Transparent,
                 _hover == i ? 1f : 0f, _pressed == i ? 1f : 0f, glow && lit ? t.Accent : default));
             if (face is null) return false;
             faces[i] = face;

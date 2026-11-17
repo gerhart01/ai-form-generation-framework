@@ -12,7 +12,13 @@ namespace AI_FGF;
 /// </summary>
 public static class AiFgfSnapshot
 {
-    public static AiFgfLayoutSnapshot Of(Form form)
+    public static AiFgfLayoutSnapshot Of(Form form) => Of(form, everyTabPage: false);
+
+    /// <summary>
+    /// The snapshot; with <paramref name="everyTabPage"/> the controls of every tab page, not only the selected one's (each
+    /// page is selected in turn, then the selection restored) - what a migration must carry over.
+    /// </summary>
+    public static AiFgfLayoutSnapshot Of(Form form, bool everyTabPage)
     {
         ArgumentNullException.ThrowIfNull(form);
         double scale = form.DeviceDpi / 96.0;
@@ -47,7 +53,13 @@ public static class AiFgfSnapshot
                     case TabControl tabs:
                         for (int i = 0; i < tabs.TabPages.Count; i++)
                             Add(K.Tab, Plain(tabs.TabPages[i].Text), tabs.RectangleToScreen(tabs.GetTabRect(i)), tabs.Font);
-                        if (tabs.SelectedTab is { } page) Walk(page);
+                        if (everyTabPage)
+                        {
+                            int selected = tabs.SelectedIndex;
+                            for (int i = 0; i < tabs.TabCount; i++) { tabs.SelectedIndex = i; Walk(tabs.TabPages[i]); }
+                            if (selected >= 0) tabs.SelectedIndex = selected;
+                        }
+                        else if (tabs.SelectedTab is { } page) Walk(page);
                         break;
                     case StatusStrip strip:
                         foreach (ToolStripItem item in strip.Items)
@@ -57,6 +69,9 @@ public static class AiFgfSnapshot
                     case ButtonBase: Add(K.Button, Plain(c.Text), Screen(c), c.Font); break;
                     case Label l when l.Text.Length > 0: Add(K.Label, l.UseMnemonic ? Plain(l.Text) : l.Text, Screen(c), c.Font); break;
                     case RichTextBox: Add(K.Log, "", Screen(c), c.Font); break;
+                    case TextBox { UseSystemPasswordChar: true } or TextBox { PasswordChar: not '\0' }:
+                        Add(K.Text, "", Screen(c), c.Font);   // a password: never its value (the snapshot is saved to a file)
+                        break;
                     case TextBoxBase: Add(K.Text, c.Text, Screen(c), c.Font); break;
                     case NumericUpDown: Add(K.Number, c.Text, Screen(c), c.Font); break;
                     case ComboBox: Add(K.Combo, c.Text, Screen(c), c.Font); break;

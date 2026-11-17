@@ -1,6 +1,13 @@
-# AI_FGF - AI Form Generation Framework
+# AI Forms Generation Framework
 
-AI_FGF is a lightweight .NET 10 / .NET 11 framework for building form-based desktop tools fast: a
+**The goal: an AI system creates a working form — 3D (Direct3D) forms included — in 1–2 minutes.** The
+assistant describes the form, the framework supplies everything else ready-made: layout at every DPI, light and dark
+themes, the Direct3D raised and glowing look of buttons, fields, tabs, progress bars and spin buttons (with a flat
+fallback), running the tool with its output, progress and results, validation, settings and presets, and a checker
+that tells the assistant when the form is done. The time is the time to describe it, not to build it — start with
+[`AGENT_GUIDE.md`](AGENT_GUIDE.md), which has the prompts.
+
+The AI Forms Generation Framework is a lightweight .NET 10 / .NET 11 framework for building form-based desktop tools fast: a
 parameters panel, Run/Cancel, a streamed log and a results grid, as a short subclass instead of a
 hand-built form. It is pure programmatic WinForms (no XAML, no designer), with an Avalonia front
 end that runs the same `tool.json` specs on Linux and macOS. Buttons and input fields render with
@@ -11,7 +18,7 @@ or start a new tool from a declarative spec or a short code subclass - either wa
 It is distilled from a family of hand-coded tool GUIs. Those apps
 independently converged on the same shape — a *parameters panel → Run/Cancel → streamed
 log → results grid* "tool runner" — and each re-implemented the same button styling,
-thread-safe logging, process streaming and DPI handling. AI_FGF lifts that shared
+thread-safe logging, process streaming and DPI handling. The framework lifts that shared
 code into one reusable library so a new tool window is a short subclass instead of a
 thousand-line form.
 
@@ -29,10 +36,12 @@ thousand-line form.
 | `samples/AI_FGF.Demo.Avalonia` | The WinForms demo's own `PingToolForm.cs`, compiled unchanged against Avalonia. |
 | `tests/Shared` | Sources both harnesses compile: the stress-form catalog, golden WinForms snapshots (`Golden/`). |
 | `schemas/tool.schema.json` | JSON Schema of `tool.json`, generated from `ToolSpec` (editor completion, typo checks). |
-| [`../AGENT_GUIDE.md`](../AGENT_GUIDE.md) (next to this folder) | Start here. The manifest: which path for a new form / a migrated form / code / Linux, and when it is done. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | The rules for adding code: model/view/controller split, .NET 11 for new features, layout, tests, done-when. |
+| [`AGENT_GUIDE.md`](AGENT_GUIDE.md) | Start here. The manifest: which path for a new form / a migrated form / code / Linux, and when it is done. |
 | `samples/AI_FGF.Linux` | The template for Linux: `AI_FGF.Linux tool.json`. |
 | `tests/AI_FGF.AvaloniaTests` | Head-less Avalonia tests (Skia rendering, no display needed). |
 | `samples/AI_FGF.Demo` | A working `ping` tool built on it in ~40 lines. |
+| `samples/AI_FGF.Showcase` | .NET 11: the features in one console window — themes and button styles live (the magic glow), 3D fields, spinner, tabs and progress, a real run with a live log and a results grid, a form from `tool.json`, a dialog, and a self-check at 96–192 DPI. `dotnet run --project samples/AI_FGF.Showcase` |
 | `samples/AI_FGF.Template` | `tool.json` — the template with every element; the exe shows any spec. |
 | `tools/AI_FGF.Check` | `AI_FGF.Check spec.json` — validates a spec and checks its form at 4 DPIs; `draft` turns an existing form into a spec, `compare` diffs two layout snapshots, `--schema` writes the schema; exit 0 = PASS. |
 | `tests/AI_FGF.LayoutTests` | Headless DPI / resize layout tests. |
@@ -43,14 +52,48 @@ dotnet run --project samples/AI_FGF.Demo -f net11.0-windows            # or -f n
 dotnet run --project tests/AI_FGF.LayoutTests -f net11.0-windows   # exit code 0 = all layout checks pass
 ```
 
+## Architecture: model, view, controller
+
+- **Model** — `AI_FGF.Core`, no UI types: the spec (`ToolSpec`), field errors, the process (`ProcessRunner`), its
+  result and the exit-code policy, settings.
+- **Controller** — `ToolRunController` (also in `AI_FGF.Core`): validate the inputs → build the command → run →
+  report (output, progress lines, CLIXML, outcome wording, cancel, timeout, every exception in the log). It talks to
+  its view only through `IToolRunView`, so the WinForms and the Avalonia `ToolForm` share one controller, and it is
+  tested headless with a fake view.
+- **View** — `ToolForm` (WinForms, `AI_FGF`) and `ToolForm` (Avalonia, `AI_FGF.Avalonia`): controls, layout,
+  painting; they implement `IToolRunView` and forward Run/Cancel to the controller. A subclass still overrides only
+  `BuildParameters`, `BuildRun` and `OnRunFinished`.
+
+Existing forms adopt the same split with `AiFgfController` (below). The rules for new code: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Free-form windows: a board of groups (.NET 11)
+
+Not every window is *parameters → Run → log*. `FormScaffold.Board` builds a console: captioned groups across the
+window or two side by side, controls that flow and wrap inside each group, the board scrolling when the window is
+short, and an optional side panel (a log) behind a splitter — themed, DPI-scaled and with a minimum size like the
+tool form.
+
+```csharp
+FormScaffold.For(this).Title("Console").Size(1200, 760)
+    .Board(b => b
+        .Wide("Connection", host, port, AiFgf.Primary(connect), status)
+        .Pair("Sound", [volume, mute], "Battery", [level, charging])
+        .Wide("Apps", appsTable),
+        side: log, sideCaption: "Log")
+    .Done();
+AutoMinSize.Guard(this, minBodyWidth: 760, minBodyHeight: 420);
+```
+
+`tools/AI_FGF.TestRunner` (`pwsh tools/Test-GUI.ps1`) is one: the test run with a row per shard.
+
 ## Linux — Avalonia, the same API
 
 WinForms runs only on Windows; on Linux there is .NET (not .NET Framework), and a UI needs a
-cross-platform toolkit. `AI_FGF.Avalonia` is AI_FGF on **Avalonia** with the **same classes and
+cross-platform toolkit. `AI_FGF.Avalonia` is the framework on **Avalonia** with the **same classes and
 members** as the WinForms library — `ToolForm`, `FormScaffold` (+ `RowBuilder`/`BarBuilder`), `FieldSet`,
 `AiFgf`, `AiFgfLog`, `AiFgfDataGridPanel`, `AiFgfDialog`, `AiFgfThemeDialog`, `AiFgfTheme`, `AiFgfSettings`, `AiFgfApp`,
 `SpecToolForm` — over the shared `AI_FGF.Core`. A tool written against one compiles against the other;
-only which AI_FGF the project references changes:
+only which front end the project references changes:
 
 ```xml
 <!-- the Avalonia project of samples/AI_FGF.Demo.Avalonia: the demo's own files, unchanged -->
@@ -363,7 +406,7 @@ The template starts with `"$schema": "../../schemas/tool.schema.json"`: VS Code,
 complete property names, show each one's documentation and flag misspelt properties, wrong kinds and fields
 without `key`/`label` as you type. The schema is generated from the `ToolSpec` classes and their XML docs
 (`AI_FGF.Check --schema schemas/tool.schema.json`); a test fails if the checked-in copy is out of date or
-the template uses a property the schema does not know. For agents: `../AGENT_GUIDE.md` (next to this folder) is the one-page
+the template uses a property the schema does not know. For agents: `AGENT_GUIDE.md` is the one-page
 manifest of the paths (spec, migration, code, Linux) and their "done when".
 
 ### Replacing an existing form
@@ -626,13 +669,13 @@ parsing `##PROGRESS##|activity|percent|status` lines into the progress bar, and
 marshalling every cross-thread UI update (and dropping late ones once the form closes).
 A PowerShell child that writes CLIXML (`-OutputFormat Xml`, or `pwsh` reading another `pwsh`) is logged
 as the console would show it, not as XML. Errors and warnings get their colours, the copies of host
-messages are dropped, and stdout and stderr batches are collected apart (`CliXmlLogFilter`, in AI_FGF.Core).
+messages are dropped, and stdout and stderr batches are collected apart (`CliXmlLogFilter`, in `AI_FGF.Core`).
 Override `OnRunFinished(ProcessResult)` to load results — e.g. `Results.ShowCsv(path)`.
 
 ## Moving an existing app: MVC, piece by piece
 
 Not every app is a tool runner. A launcher that edits the registry, controls a service and downloads
-releases does not fit `tool.json` → command line, but it can still take AI_FGF without being rebuilt.
+releases does not fit `tool.json` → command line, but it can still take the framework without being rebuilt.
 `tests/AI_FGF.LayoutTests/Legacy` holds such a form: Designer-made, absolute coordinates, its own
 `LightGreen`/`LightCoral` status colours, one handler shared by two buttons, an `OnShown` override.
 `MvcTests` checks every step below on it.
@@ -664,7 +707,7 @@ drop-down's index. A model that implements `INotifyPropertyChanged` updates the 
 binds to the keys of a `FormScaffold` form, so a controller can move from Designer markup to scaffold rows
 without its model changing.
 
-**3. AI_FGF's look and sizing, on by default** (`AiFgfAdoption`, `AiFgfMvc.DefaultAdoption`):
+**3. The framework's look and sizing, on by default** (`AiFgfAdoption`, `AiFgfMvc.DefaultAdoption`):
 - `AiFgfAdopt.Theme(form)`: every control gets the colours of its role in `AiFgfTheme.Current`. That covers the
   window, the fields, the flat buttons, the default button in the accent, grids and links, plus the
   dark title bar and native dark scroll bars and drop-downs. A colour the form sets itself keeps its hue:
@@ -680,10 +723,10 @@ without its model changing.
   4–5 px off.
 
 `AiFgfConformance.CheckAcrossDpi(() => new Form1Controller().View, 96, 120, 144, 192)` then checks the old form
-like any AI_FGF form. It finds overlaps, clipped text, contrast and spacing problems.
+like any form of the framework. It finds overlaps, clipped text, contrast and spacing problems.
 
-**Depend on a release, not on these sources.** `tools/Pack.ps1 [-Version x.y.z]` packs AI_FGF.Core,
-AI_FGF and AI_FGF.Avalonia into `artifacts/packages`. An app adds that folder to its `nuget.config`
+**Depend on a release, not on these sources.** `tools/Pack.ps1 [-Version x.y.z]` packs `AI_FGF.Core`,
+`AI_FGF` and `AI_FGF.Avalonia` into `artifacts/packages`. An app adds that folder to its `nuget.config`
 and references `<PackageReference Include="AI_FGF" Version="x.y.z" />`. It builds on
 `net10.0-windows7.0` and `net11.0-windows7.0` too. Copying single classes is not supported: `AutoMinSize`, the palette and the checks
 share `AiFgfColor`, `ParamTable` and the metrics.
@@ -734,6 +777,20 @@ someAiFgfButton.Look = AiFgfButtonStyle.Glow;                                 //
 // accent fill (AiFgfProgressBar.Look), and so do the tab headers - the selected tab raised (glowing with Glow), the
 // others sunken (AiFgfTabControl.Look) - and the number fields' spin buttons, raised halves that sink when pressed
 // (AiFgfNumber.Look); on .NET 10 all of these stay flat.
+// .NET 11: the Glow look is magic light - the halo's hue drifts like mother-of-pearl, a shimmer sweeps the face, sparks
+// twinkle in the halo (32 cached frames, 3.2 s a cycle; still when Windows animations are off).
+// .NET 11: AiFgf.Toggle("Verbose") / "switch": true on a tool.json flag - an on/off switch: a pill track (sunken off, the
+// accent on) and a round knob that slides, Direct3D faces with the form's button style, flat without Direct3D. On
+// Avalonia (.NET 11) AiFgf.Toggle is Avalonia's ToggleSwitch, and a spec's "switch" flags are switches there too.
+// .NET 11 tool.json: "kind": "note" (a line of text; in the Raised and Glow looks a Direct3D plate - a sunken strip with
+// an accent bar, AiFgfNote / AiFgf.Note), "password": true (hidden, never saved), "radio": true (radio
+// buttons), "actions" (more buttons beside Run, each its own command from the same fields - "Start" / "Stop").
+// .NET 11: sliders (rows.Slider, AiFgfSlider.Look) take the style too - a sunken groove filled with the accent up to a
+// raised thumb (lit with Glow); keyboard, mouse and values stay the system track bar's.
+// .NET 11: radio buttons and check boxes too (AiFgfRadio.Look, AiFgfCheck.Look) - a sunken well; a raised accent dot on
+// the selected radio button, a raised accent square with a tick (or a dash, indeterminate) on a checked box.
+// .NET 11: AiFgf.ApplyLook(form, AiFgfButtonStyle.Glow) gives a FormScaffold window (not a ToolForm, which does it
+// itself) the style on every 3D control at once - buttons, progress bars, tabs, spinners, switches, sliders, radio buttons, check boxes.
 
 // Translucent busy scrim during a long step.
 var busy = new AiFgfBusyOverlay();

@@ -28,7 +28,7 @@ internal static class Program
 
         var panel = new StackPanel { Margin = new Thickness(24), Spacing = 14, Width = 320 };
 
-        panel.Children.Add(new TextBlock { Text = "AI_FGF Direct3D on Avalonia", Foreground = new SolidColorBrush(AvTheme.ToAv(t.Text)), FontWeight = FontWeight.Bold, FontSize = 16 });
+        panel.Children.Add(new TextBlock { Text = "AI Forms Generation Framework — Direct3D on Avalonia", Foreground = new SolidColorBrush(AvTheme.ToAv(t.Text)), FontWeight = FontWeight.Bold, FontSize = 16, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock { Text = "The same pixel shader AiFgfButton uses on WinForms, via Vortice.Direct3D12.", Foreground = new SolidColorBrush(AvTheme.ToAv(t.Subtle)), TextWrapping = TextWrapping.Wrap });
 
         panel.Children.Add(new AiFgfD3DButton { Content = "Save preset...", Look = AiFgfButtonStyle.Glow, Width = 200, Height = 36, HorizontalAlignment = HorizontalAlignment.Left });
@@ -47,13 +47,14 @@ internal static class Program
 
         var window = new Window
         {
-            Title = "AI_FGF - Direct3D on Avalonia (experimental, Windows-only)",
+            Title = "AI Forms Generation Framework — Direct3D on Avalonia (experimental, Windows-only)",
             Width = 400,
             Height = 480,
             Background = new SolidColorBrush(AvTheme.ToAv(t.App)),
             Content = panel,
         };
-        window.Opened += (_, _) => status.Text = "AiFgfD3D.Status: " + AiFgfD3D.Status;
+        // IsAvailable starts the device, so the status names the adapter rather than "not started"
+        window.Opened += (_, _) => { _ = AiFgfD3D.IsAvailable; status.Text = "AiFgfD3D.Status: " + AiFgfD3D.Status; };
         return window;
     }
 }

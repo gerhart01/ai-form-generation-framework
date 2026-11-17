@@ -73,7 +73,9 @@ public static class AiFgf
     public static Button SmallButton(string text, EventHandler? onClick = null, bool direct3D = false)
     {
         Button b = NewButton(direct3D);
-        b.Content = Mnemonic(text);
+        // a caption that wraps past 25 em, as a full button's: a long one beside a field was cut off at the window's edge
+        b.Content = WrappingCaption(text);
+        CapWidth(b, MaxCaptionEm);
         b.Padding = WinFormsMetrics.ButtonPadding(8, 4, AvTheme.UiFontSize);
         b.Margin = new Thickness(3);
         b.HorizontalContentAlignment = HorizontalAlignment.Center;
@@ -111,6 +113,22 @@ public static class AiFgf
         Margin = WinFormsMetrics.CheckMargin,
         VerticalAlignment = VerticalAlignment.Center,
     }, MaxCaptionEm);
+
+#if NET11_0_OR_GREATER
+    /// <summary>
+    /// .NET 11: an on/off switch (Avalonia's <see cref="ToggleSwitch"/>) - the counterpart of WinForms' <c>AiFgfToggle</c>,
+    /// for <c>"switch": true</c> flags; its value reads "true"/"false" like a check box, its caption wraps the same way.
+    /// </summary>
+    public static ToggleSwitch Toggle(string text, bool on = false) => CapWidth(new ToggleSwitch
+    {
+        Content = WrappingCaption(text, TextAlignment.Left),
+        OnContent = null,    // no "On"/"Off" words beside the knob: the caption says what it is
+        OffContent = null,
+        IsChecked = on,
+        Margin = WinFormsMetrics.CheckMargin,
+        VerticalAlignment = VerticalAlignment.Center,
+    }, MaxCaptionEm);
+#endif
 
     public static TextBlock Label(string text, bool subtle = false)
     {

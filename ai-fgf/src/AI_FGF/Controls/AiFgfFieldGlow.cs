@@ -153,7 +153,7 @@ public sealed class AiFgfFieldGlow : Panel
         if (Sunken)
         {
             // the sunken body: AiFgfButton's own Raised face, pressed forced to 1 so it is always inset
-            Bitmap? sunk = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(Width, Height, scale, body, back, Color.Transparent, 0f, 1f));
+            Bitmap? sunk = AiFgfDirect3D.Draw(new AiFgfFace(Width, Height, scale, body, back, Color.Transparent, 0f, 1f));
             if (sunk is not null) e.Graphics.DrawImageUnscaled(sunk, 0, 0);
             else { using var flat = new SolidBrush(body); e.Graphics.FillRectangle(flat, ClientRectangle); }
 
@@ -171,7 +171,7 @@ public sealed class AiFgfFieldGlow : Panel
             return;
         }
 
-        Bitmap? face = AiFgfDirect3D.Draw(new AiFgfDirect3D.Face(Width, Height, scale, body, back, Color.Transparent, _focusAnim, 0f, glow, _hasFocus));
+        Bitmap? face = AiFgfDirect3D.Draw(new AiFgfFace(Width, Height, scale, body, back, Color.Transparent, _focusAnim, 0f, glow, _hasFocus));
         if (face is not null) { e.Graphics.DrawImageUnscaled(face, 0, 0); return; }
         using var b = new SolidBrush(body);
         e.Graphics.FillRectangle(b, ClientRectangle);

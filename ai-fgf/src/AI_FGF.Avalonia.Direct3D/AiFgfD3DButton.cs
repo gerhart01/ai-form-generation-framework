@@ -40,6 +40,18 @@ public sealed class AiFgfD3DButton : Button, IAiFgfD3DPrimary
         Background = Brushes.Transparent;
         BorderThickness = new Thickness(0);
         Focusable = true;
+        // the caption in the middle of the face, as on WinForms: the theme's Button styles (which centre it) do not reach
+        // a subclass, so it sat at the top left - above a glowing face's body, which is inset to make room for the halo
+        HorizontalContentAlignment = global::Avalonia.Layout.HorizontalAlignment.Center;
+        VerticalContentAlignment = global::Avalonia.Layout.VerticalAlignment.Center;
+        Padding = new Thickness(10, 4);
+        // disabled: the caption in the theme's subtle colour, as on WinForms (it stayed as bright as an enabled one)
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property != IsEnabledProperty) return;
+            if (IsEnabled) ClearValue(ForegroundProperty);
+            else Foreground = new SolidColorBrush(AvTheme.ToAv(AiFgfTheme.Current.Subtle));
+        };
         PointerEntered += (_, _) => { _hover = true; Animate(); };
         PointerExited += (_, _) => { _hover = _pressed = false; _pointer = null; Animate(); };
         PointerMoved += (_, e) => { if (Look == AiFgfButtonStyle.Raised) { _pointer = e.GetPosition(this); InvalidateVisual(); } };
@@ -97,11 +109,19 @@ public sealed class AiFgfD3DButton : Button, IAiFgfD3DPrimary
             bool glowing = Look == AiFgfButtonStyle.Glow;
             Color glow = glowing ? EffectiveGlow : Color.Empty;
             bool specular = Look == AiFgfButtonStyle.Raised && _pointer is { } p;
-            var face = new AiFgfD3D.Face(w, h, (float)scale, body, back, Color.Transparent, _hoverAnim, _pressAnim,
+            var face = new AiFgfFace(w, h, (float)scale, body, back, Color.Transparent, _hoverAnim, _pressAnim,
                 glow, glowing && _hasFocus,
                 specular ? (float)(_pointer!.Value.X * scale) : -1f, specular ? (float)(_pointer!.Value.Y * scale) : -1f);
             WriteableBitmap? bmp = AiFgfD3D.Draw(face);
             if (bmp is not null) context.DrawImage(bmp, new Rect(Bounds.Size));
+        }
+        else if (!IsEnabled)
+        {
+            // disabled: a flat face in the window colour with a border, as on WinForms - it used to be no face at all,
+            // just a caption floating among the buttons
+            AiFgfTheme t = AiFgfTheme.Current;
+            var rect = new Rect(Bounds.Size).Deflate(0.5);
+            context.DrawRectangle(new SolidColorBrush(AvTheme.ToAv(t.App)), new Pen(new SolidColorBrush(AvTheme.ToAv(t.Border)), 1), rect, 3, 3);
         }
         base.Render(context);
     }

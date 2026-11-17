@@ -49,7 +49,7 @@ public static class ToolSpecSchema
         {
             ["$schema"] = "https://json-schema.org/draft/2020-12/schema",
             ["$id"] = Id,
-            ["title"] = "AI_FGF tool spec (tool.json)",
+            ["title"] = "AI Forms Generation Framework tool spec (tool.json)",
         };
         foreach (var (key, value) in schema.ToList()) { schema.Remove(key); root[key] = value; }
         if (root["properties"] is JsonObject props)

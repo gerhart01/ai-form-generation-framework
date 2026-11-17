@@ -301,14 +301,40 @@ public sealed class ParamTable : TableLayoutPanel
         }
         // A note wraps at its column (as the last pass laid it out) instead of widening the table past the window.
         // Set before the table lays out: set after, inside its pass, the label came out 0 px high.
-        if (_rows.Any(r => r.Input is Label) && GetColumnWidths() is { Length: > 0 } columns)
+        bool noteWidthChanged = false;
+        // Its width is the room the table has for it - the same as HeightAt counts - not the columns of the last pass: those
+        // were the wider window's after a DPI change or a shrink, and the note kept the table that wide, cut off.
+        if (_rows.Any(r => r.Input is Label) && ClientSize.Width > 0)
+        {
+            int labelW = _stacked ? 0 : LabelWidth;
             foreach (Row r in _rows)
-                if (r.Input is Label note && GetPositionFromControl(note) is { Column: >= 0 } at && at.Column < columns.Length)
+                if (r.Input is Label note)
                 {
-                    int w = Math.Max(Em, columns.Skip(at.Column).Take(GetColumnSpan(note)).Sum() - note.Margin.Horizontal);
-                    if (note.MaximumSize.Width != w) note.MaximumSize = new Size(w, 0);
+                    int w = Math.Max(Em, ClientSize.Width - Padding.Horizontal - labelW - (r.Trailing is null ? 0 : TrailingWidth) - note.Margin.Horizontal);
+                    if (note.MaximumSize.Width != w) { note.MaximumSize = new Size(w, 0); noteWidthChanged = true; }
                 }
+        }
+        // A note (a label in the input column) wraps at its column (MaximumSize, set just above), and at a
+        // narrower width - the window's minimum, a higher DPI - it needs more lines than the AutoSize row first measured;
+        // a long note came out a line short, cut off at the bottom. Its row's height is its wrapped text at that width.
+        foreach (Row r in _rows)
+            if (r.Input is Label note && note.MaximumSize.Width >= 8 * Em && GetPositionFromControl(note) is { Row: >= 0 } at && at.Row < RowStyles.Count)
+            {
+                // the note's own size too: an auto-sized label kept the height of fewer lines after a DPI change
+                int maxW = note.MaximumSize.Width;
+                Size want = note.GetPreferredSize(new Size(maxW, 0));
+                want = new Size(Math.Min(maxW, want.Width), Math.Max(want.Height, NoteHeight(note, Math.Min(maxW, want.Width))));
+                if (note.AutoSize) note.AutoSize = false;
+                if (note.Size != want) note.Size = want;
+                int h = want.Height + note.Margin.Vertical;
+                if (!_stacked && r.Label is not null) h = Math.Max(h, Measured(r.Label));
+                if (RowStyles[at.Row].SizeType != SizeType.Absolute || (int)RowStyles[at.Row].Height != h)
+                    RowStyles[at.Row] = new RowStyle(SizeType.Absolute, h);
+            }
         base.OnLayout(levent);
+        // a note's row has its own height now, so a new width no longer makes the table lay out again by itself: one more
+        // pass (at the same width it changes nothing, so this ends)
+        if (noteWidthChanged && IsHandleCreated && !IsDisposed) BeginInvoke(new Action(() => { if (!IsDisposed) PerformLayout(); }));
         if (_fitting) return;
         _fitting = true;
         try

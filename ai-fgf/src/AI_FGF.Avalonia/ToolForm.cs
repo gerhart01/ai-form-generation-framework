@@ -32,7 +32,7 @@ namespace AI_FGF.Avalonia;
 /// drive the progress bar, exit-code outcomes, settings (fields, placement, theme) saved per tool.
 /// Keyboard: Ctrl+Enter / F5 run, Esc cancels a run, Ctrl+F finds in the log.
 /// </summary>
-public abstract class ToolForm : Window
+public abstract class ToolForm : Window, IToolRunView
 {
     protected override Type StyleKeyOverride => typeof(Window);
 
@@ -49,9 +49,9 @@ public abstract class ToolForm : Window
         Padding = new Thickness(WinFormsMetrics.TextPad(WinFormsMetrics.StatusFontSize), 0),
     };
     private Button _runButton = null!, _cancelButton = null!;
-    private readonly CliXmlLogFilter _clixml = new();
     private readonly Border _busy;
-    private CancellationTokenSource? _cts;
+    // the controller: validate -> build -> run -> report, shared with the WinForms ToolForm (this window is its view)
+    private readonly ToolRunController _controller;
     private bool _running, _closing;
 
     protected AiFgfLog Log => _log;
@@ -73,7 +73,7 @@ public abstract class ToolForm : Window
     protected virtual string RunButtonText => AiFgfText.Run;
     protected virtual KeyGesture RunShortcut => new(Key.Enter, KeyModifiers.Control);
     protected virtual KeyGesture CancelShortcut => new(Key.Escape);
-    protected virtual string FormTitle => "AI_FGF Tool";
+    protected virtual string FormTitle => "AI Forms Generation Framework tool";
     protected virtual bool ThemeButton => false;
     /// <summary>
     /// This form's button style (flat, raised, glowing — <see cref="AiFgfButtonEffects"/>; WinForms draws the effects with
@@ -113,6 +113,7 @@ public abstract class ToolForm : Window
 
     protected ToolForm()
     {
+        _controller = new ToolRunController(this);
         Direct3DActive = UseDirect3D && AiFgfRenderers.Direct3D is { IsAvailable: true };
         var scaffold = FormScaffold.For(this, Direct3DActive)
             .Title(FormTitle)
@@ -241,7 +242,7 @@ public abstract class ToolForm : Window
     protected override void OnClosed(EventArgs e)
     {
         _closing = true;
-        try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
+        _controller.Cancel();
         SaveSettings();
         base.OnClosed(e);
     }
@@ -254,7 +255,7 @@ public abstract class ToolForm : Window
             AiFgfSettings.Save(path, new FormSettingsData
             {
                 Window = AiFgfSettings.Capture(this),
-                Fields = _fields.GetValues(),
+                Fields = _fields.GetPersistableValues(),   // never a password
                 Theme = ThemeButton ? AiFgfTheme.Current.Choice.ToString() : null,
                 Buttons = ThemeButton && AiFgfEffects.UserButtons is { } b ? AiFgfEffects.Name(b) : null,
             });
@@ -262,22 +263,11 @@ public abstract class ToolForm : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
     }
 
-    protected bool SavePresetTo(string path)
-    {
-        try { AiFgfSettings.SavePreset(path, _fields); return true; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            _log.Error($"Could not save the preset: {ex.Message}");
-            return false;
-        }
-    }
+    /// <summary>Save the field values as a JSON preset (reported in the log; false when it could not be written).</summary>
+    protected bool SavePresetTo(string path) => ToolPresets.Save(path, _fields, ((IToolRunView)this).AppendLog);
 
-    protected bool LoadPresetFrom(string path)
-    {
-        bool ok = AiFgfSettings.LoadPreset(path, _fields);
-        if (!ok) _log.Warn($"No values in {path}");
-        return ok;
-    }
+    /// <summary>Apply a JSON preset to the fields; false (with a log line) if it had no values.</summary>
+    protected bool LoadPresetFrom(string path) => ToolPresets.Load(path, _fields, ((IToolRunView)this).AppendLog);
 
     private void OnKeys(object? sender, KeyEventArgs e)
     {
@@ -292,102 +282,70 @@ public abstract class ToolForm : Window
     /// <summary>What Run, Ctrl+Enter and F5 do.</summary>
     public void StartRun()
     {
-        if (_running) return;
-        CurrentRun = RunAsync();
+        if (_controller.IsRunning) return;
+        CurrentRun = _controller.RunAsync();
+    }
+#if NET11_0_OR_GREATER
+
+    private Func<ProcessRunner?>? _nextRun;
+    private readonly System.Collections.Generic.List<Control> _actionButtons = new();
+
+    /// <summary>
+    /// .NET 11: start a run of another command - a second action of the form ("Stop" beside "Start"): validated, logged,
+    /// cancelled and timed exactly as the Run button's, by the same controller; <paramref name="build"/> takes the place
+    /// of <see cref="BuildRun"/> for this one run.
+    /// </summary>
+    protected void StartRun(Func<ProcessRunner?> build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        if (_controller.IsRunning) return;
+        _nextRun = build;
+        CurrentRun = _controller.RunAsync();
     }
 
-    private void CancelRun() { try { _cts?.Cancel(); } catch (ObjectDisposedException) { } }
+    /// <summary>.NET 11: a button of a second action - disabled while any run is going, as the Run button is.</summary>
+    protected void AddActionButton(Control button) { if (!_actionButtons.Contains(button)) _actionButtons.Add(button); }
+#endif
 
-    private async Task RunAsync()
+    private void CancelRun() => _controller.Cancel();
+
+    // --------------------------------------------------------------- the view of the run (IToolRunView)
+
+    IReadOnlyList<FieldError> IToolRunView.ValidateInputs() => _fields.Validate();
+#if NET11_0_OR_GREATER
+    ProcessRunner? IToolRunView.BuildRun()
     {
-        if (_running) return;
-        bool started = false;
-        ProcessRunner? runner = null;
-        try
-        {
-            var errors = _fields.Validate();
-            if (errors.Count > 0)
-            {
-                foreach (FieldError err in errors) _log.Error("✗ " + err.Message);
-                _status.Text = errors.Count == 1 ? errors[0].Message : AiFgfText.Format(AiFgfText.FieldsNeedAttention, errors.Count);
-                return;
-            }
+        Func<ProcessRunner?>? next = _nextRun;
+        _nextRun = null;
+        return next is null ? BuildRun() : next();
+    }
+#else
+    ProcessRunner? IToolRunView.BuildRun() => BuildRun();
+#endif
+    TimeSpan? IToolRunView.RunTimeout => RunTimeout;
+    string IToolRunView.ProgressMarker => ProgressMarker;
+    bool IToolRunView.IsClosing => _closing;
+    void IToolRunView.SetRunning(bool running) => SetRunning(running);
+    void IToolRunView.ShowProgress(string activity, int percent, string status) => UpdateProgress(activity, percent, status);
+    void IToolRunView.RunFinished(ProcessResult result) => OnRunFinished(result);
+    bool IToolRunView.HandleOutputLine(string text) => false;
 
-            runner = BuildRun();
-            if (runner is null) return;
-
-            _cts = new CancellationTokenSource();
-            _clixml.Reset();
-            runner.Output += OnOutput;
-            if (runner.TimeoutLimit is null && RunTimeout is { } limit) runner.Timeout(limit);
-
-            started = true;
-            SetRunning(true);
-            UpdateProgress(AiFgfText.Starting, 0, "");
-            _log.Append($"> {runner.CommandLine}", AiFgfTheme.Current.LogAccent);
-
-            ProcessResult result = await runner.RunAsync(_cts.Token);
-            foreach (LogLine rendered in _clixml.Flush()) Emit(rendered);   // any CLIXML left mid-batch
-            if (result.HandlerError is { } handlerError)
-                _log.Error($"ERROR in an output handler: {handlerError.GetType().Name}: {handlerError.Message}");
-
-            string took = FormatDuration(result.Duration);
-            if (result.TimedOut)
-            {
-                _log.Warn($"[timed out after {took} — process tree stopped]");
-                UpdateProgress(AiFgfText.TimedOut, 0, "");
-            }
-            else if (result.Cancelled)
-            {
-                _log.Warn($"[cancelled after {took}]");
-                UpdateProgress(AiFgfText.Cancelled, 0, "");
-            }
-            else
-            {
-                var (colour, activity) = result.Outcome switch
-                {
-                    RunOutcome.Success => (AiFgfTheme.Current.LogSuccess, AiFgfText.Done),
-                    RunOutcome.Warning => (AiFgfTheme.Current.LogWarn, AiFgfText.DoneWithWarnings),
-                    _ => (AiFgfTheme.Current.LogError, AiFgfText.DoneWithErrors),
-                };
-                string detail = result.OutcomeMessage.Length > 0 && !result.OutcomeMessage.StartsWith("exit code", StringComparison.Ordinal)
-                    ? $" — {result.OutcomeMessage}" : "";
-                _log.Append($"[finished — exit code {result.ExitCode} in {took}{detail}]", colour);
-                UpdateProgress(activity, 100, result.OutcomeMessage);
-            }
-
-            try { if (!_closing) OnRunFinished(result); } catch (Exception ex) { _log.Error("post-run: " + ex.Message); }
-        }
-        catch (Exception ex)
-        {
-            _log.Error("ERROR: " + ex.Message);
-            UpdateProgress(AiFgfText.Error, 0, "");
-            if (!started) _status.Text = AiFgfText.Error + ": " + ex.Message;
-        }
-        finally
-        {
-            if (runner is not null) runner.Output -= OnOutput;
-            if (started) SetRunning(false);
-            _cts?.Dispose();
-            _cts = null;
-        }
+    void IToolRunView.SetStatus(string text)
+    {
+        if (_closing) return;
+        if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => _status.Text = text); return; }
+        _status.Text = text;
     }
 
-    private void OnOutput(OutputKind kind, string line)
+    void IToolRunView.AppendLog(string text, RunLogTone tone)
     {
-        // Convert any PowerShell CLIXML (minishell / -OutputFormat Xml) back to text; other output
-        // passes straight through. A batch may span several lines, so this can emit 0 or many.
-        foreach (LogLine rendered in _clixml.Feed(kind, line)) Emit(rendered);
-    }
-
-    private void Emit(LogLine rendered)
-    {
-        if (rendered.Text.StartsWith(ProgressMarker, StringComparison.Ordinal)) { HandleProgress(rendered.Text); return; }
-        switch (rendered.Severity)
+        switch (tone)
         {
-            case LogSeverity.Error: _log.Error(rendered.Text); break;
-            case LogSeverity.Warning: _log.Warn(rendered.Text); break;
-            default: _log.Line(rendered.Text); break;
+            case RunLogTone.Error: _log.Error(text); break;
+            case RunLogTone.Warning: _log.Warn(text); break;
+            case RunLogTone.Accent: _log.Append(text, AiFgfTheme.Current.LogAccent); break;
+            case RunLogTone.Success: _log.Append(text, AiFgfTheme.Current.LogSuccess); break;
+            default: _log.Line(text); break;
         }
     }
 
@@ -398,19 +356,11 @@ public abstract class ToolForm : Window
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => SetRunning(running)); return; }
         _runButton.IsEnabled = !running;
         _cancelButton.IsEnabled = running;
+#if NET11_0_OR_GREATER
+        foreach (Control action in _actionButtons) action.IsEnabled = !running;
+#endif
         _status.Text = running ? AiFgfText.Running : AiFgfText.Idle;
         _busy.IsVisible = running && ShowBusyOverlay;
-    }
-
-    private void HandleProgress(string line)
-    {
-        // ##PROGRESS##|<activity>|<percent>|<status>
-        string[] parts = line.Split('|', 4);
-        string activity = parts.Length > 1 ? parts[1] : "";
-        int pct = 0;
-        if (parts.Length > 2 && double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out double d)) pct = (int)Math.Round(d);
-        string status = parts.Length > 3 ? parts[3] : "";
-        UpdateProgress(activity, pct, status);
     }
 
     private void UpdateProgress(string activity, int pct, string status)
@@ -423,10 +373,5 @@ public abstract class ToolForm : Window
     }
 
     /// <summary>"0.4 s", "12.3 s", "4:05", "1:02:03".</summary>
-    public static string FormatDuration(TimeSpan d)
-    {
-        if (d < TimeSpan.FromMinutes(1)) return d.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
-        if (d < TimeSpan.FromHours(1)) return d.ToString(@"m\:ss", CultureInfo.InvariantCulture);
-        return ((int)d.TotalHours).ToString(CultureInfo.InvariantCulture) + d.ToString(@"\:mm\:ss", CultureInfo.InvariantCulture);
-    }
+    public static string FormatDuration(TimeSpan d) => ToolRunController.FormatDuration(d);
 }

@@ -35,7 +35,7 @@ internal static class Program
 
     private static Window ErrorWindow(string message) => new()
     {
-        Title = "AI_FGF — spec error",
+        Title = "AI Forms Generation Framework — spec error",
         Width = 640, Height = 240,
         Content = new TextBlock { Text = message, Margin = new global::Avalonia.Thickness(16), TextWrapping = global::Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Top },
     };

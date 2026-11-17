@@ -60,7 +60,12 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
             if (f.Kind == FieldKind.Flag)
             {
                 // consecutive flags share one wrapping row of checkboxes
-                flags.Add((f.Key, AiFgf.Check(f.Label, bool.TryParse(f.Default, out bool on) && on)));
+                bool on = bool.TryParse(f.Default, out bool d) && d;
+#if NET11_0_OR_GREATER
+                flags.Add((f.Key, f.Switch ? AiFgf.Toggle(f.Label, on) : AiFgf.Check(f.Label, on)));   // "switch": true - an on/off switch
+#else
+                flags.Add((f.Key, AiFgf.Check(f.Label, on)));
+#endif
                 continue;
             }
             FlushFlags();
@@ -77,7 +82,12 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
                     }
                     else
                     {
-                        rows.Text(label, out TextBox text, f.Placeholder, f.Required, f.Key);
+                        TextBox text;
+#if NET11_0_OR_GREATER
+                        if (f.Password) rows.Password(label, out text, f.Placeholder, f.Required, f.Key);   // "password": true - hidden input
+                        else
+#endif
+                        rows.Text(label, out text, f.Placeholder, f.Required, f.Key);
                         if (f.Default is not null) text.Text = f.Default;
                     }
                     break;
@@ -96,12 +106,25 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
                     if (f.Default is not null) folder.Text = f.Default;
                     break;
                 case FieldKind.Choice:
+#if NET11_0_OR_GREATER
+                    if (f.Radio && f.Choices is { Count: > 0 } radios)   // "radio": true - every choice at once
+                    {
+                        rows.Radios(label, radios, f.Default is { } sel && radios.Contains(sel) ? sel : radios[0], f.Key);
+                        break;
+                    }
+#endif
                     rows.Combo(label, out ComboBox combo, f.Editable, f.Required, f.Key);
                     if (f.Choices is not null) combo.Items.AddRange(f.Choices.Cast<object>().ToArray());
                     if (f.Default is not null) combo.Text = f.Default;
                     else if (!f.Editable && combo.Items.Count > 0) combo.SelectedIndex = 0;
                     if (f.ChoicesFromMarker is { Length: > 0 } choiceMarker) FillComboFromMarker(choiceMarker, combo);
                     break;
+#if NET11_0_OR_GREATER
+                case FieldKind.Note:
+                    // a line of text across the form (a hint, a status line carried over from an old form)
+                    rows.Custom("", AiFgf.Note(f.Label));   // a plate in the 3D looks
+                    break;
+#endif
                 case FieldKind.Number:
                     decimal min = f.Min ?? 0, max = f.Max ?? 100;
                     decimal value = decimal.TryParse(f.Default, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal d) ? d : min;
@@ -128,6 +151,20 @@ public sealed class SpecToolForm(ToolSpec spec) : ToolForm
     }
 
     protected override ProcessRunner? BuildRun() => _spec.BuildRunner(Fields.GetValues());
+#if NET11_0_OR_GREATER
+
+    // "actions": a button each beside Run - its own command from the same fields, run by the same controller
+    protected override void ConfigureButtons(FormScaffold.BarBuilder bar)
+    {
+        base.ConfigureButtons(bar);
+        foreach (ActionSpec action in _spec.Actions ?? new())
+        {
+            ActionSpec a = action;
+            bar.Button(a.Label, (_, _) => StartRun(() => _spec.BuildRunner(Fields.GetValues(), a)), out var button);
+            AddActionButton(button);
+        }
+    }
+#endif
 
     protected override void OnRunFinished(ProcessResult result)
     {
